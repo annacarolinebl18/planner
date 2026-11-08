@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09p";
+const VER = "2026-11-09q";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -827,15 +827,9 @@ function parcelasDoMes(m) {
   return out.sort((a, b) => (b.n - b.k) - (a.n - a.k) || a.nome.localeCompare(b.nome));
 }
 function paginaParcelas() {
-  const nomeMes = MESES[Number(MES.slice(5)) - 1], lista = parcelasDoMes(MES);
-  const total = lista.reduce((s, x) => s + x.valor, 0);
+  // como era (ela, 09/11): a grade e as faturas; a grade comeca no mes das setas
   const fats = S.faturas.slice().sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
-  return `<div class="box"><h3>Parcelas de ${nomeMes}</h3>${lista.length ? lista.map(x => `<div class="lin" style="cursor:default">
-      <span class="t">${esc(x.nome)}<small>${esc(x.cartao)}${x.k === x.n ? " · última" : " · faltam " + (x.n - x.k)}${x.dividido ? '<span class="pil br">metade é sua: ' + brl(x.valor * x.dividido) + "</span>" : ""}</small></span>
-      <span class="pil ${x.k === x.n ? "ok" : "br"}" style="font-size:12px">${x.k}/${x.n}</span><span class="val">${brl(x.valor)}</span></div>`).join("")
-      + `<div class="lin" style="cursor:default;font-weight:700"><span class="t">Total em parcelas</span><span class="val">${brl(total)}</span></div>`
-      : '<div class="vazio">Nenhuma parcela neste mês.</div>'}</div>
-    <div class="box"><h3>Próximos meses</h3>${htmlParcelas()}</div>
+  return `<div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
     <div class="box"><h3>Faturas</h3>${fats.length ? fats.map(f => `<div class="lin" data-fat="${f.id}"><span class="d">${ddmm(f.vence)}</span>
       <span class="t">${esc(f.cartao)}<small>vence ${ddmm(f.vence)}/${f.vence.slice(0, 4)}</small></span>
       <span class="val">${brl(-f.total)} ${f.paga ? '<span class="pil ok">paga</span>' : f.emAberto ? '<span class="pil br">em aberto</span>' : '<span class="pil warn">a pagar</span>'}</span></div>`).join("")
