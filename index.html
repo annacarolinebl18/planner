@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09m";
+const VER = "2026-11-09n";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -692,6 +692,16 @@ function htmlPlano(m, r, pl, completo) {
       ${x.feito ? `<button class="pago-bt cx-bt on" data-cxdes="${x.c.id}">Adicionado</button>` : x.v ? `<button class="pago-bt cx-bt" data-cxadd="${x.c.id}" data-v="${x.v}">Adicionar à caixinha</button>` : '<span class="cx-bt"></span>'}</div>`).join("");
   return `<div class="box"><h3>${completo ? "Plano de " + MESES[Number(m.slice(5)) - 1] : "Para onde vai"}</h3>${lin13}${lin}</div>`;
 }
+function gastoDaCategoria(catId, m) {
+  const conta = lancamentosDoMes(m).filter(l => l.valor < 0 && l.categoria === catId && !l.pagoFora);
+  const cartao = S.lancamentos.filter(l => l.fatura && l.valor < 0 && l.categoria === catId && periodoDe(l.data) === m);
+  return Math.round(conta.concat(cartao).reduce((s, l) => s - l.valor * (l.dividido || 1), 0) * 100) / 100;
+}
+function htmlEnvelope(c, m) {
+  if (!c.cobre) return "";
+  const guardou = (c.feitos || {})[m] || 0, gastou = gastoDaCategoria(c.cobre, m), resta = Math.round((guardou - gastou) * 100) / 100;
+  return `<small class="faint" style="display:block">${MESES[Number(m.slice(5)) - 1]}: separou ${brl(guardou)} · gastou ${brl(gastou)} (Pix, débito e cartão) · <span style="color:${resta < 0 ? "var(--bad)" : "var(--ok)"}">${resta < 0 ? "passou " + brl(-resta) : "resta " + brl(resta)}</span></small>`;
+}
 /* card do topo: quanto da para guardar; quando nao da, a conta do porque */
 function abrirDiaADia(m) {
   const nomeMes = MESES[Number(m.slice(5)) - 1], atual = (S.diaADia || {})[m], todos = cfg().diaADia;
@@ -962,7 +972,7 @@ function paginaCaixinhas() {
           <div style="display:flex;align-items:center;gap:8px"><span class="faint" style="width:16px">${c.ordem || ""}</span><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "ordinários" : c.grupo === 30 ? "básicos" : "essencial"}</span></b>
             <span class="val">${brl(c.saldo || 0)}${c.meta ? ' <span class="faint">de ' + brl(c.meta) + "</span>" : ""}</span></div>
           ${c.meta ? `<div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin:6px 0 4px"><div style="height:100%;width:${pct}%;background:var(--g20)"></div></div>` : ""}
-          <small class="faint">${esc(pr.texto)}</small></div>`;
+          ${c.cobre ? htmlEnvelope(c, MES) : `<small class="faint">${esc(pr.texto)}</small>`}</div>`;
       }).join("") : '<div class="vazio">Nenhuma caixinha ainda.</div>'}</div>`;
 }
 function abrirCaixinha(c) {
@@ -978,6 +988,7 @@ function abrirCaixinha(c) {
       <div class="campo"><label>Até quando (opcional)</label><input id="cData" type="date" value="${esc(c.data || "")}"></div></div>
     <div class="lado"><div class="campo"><label>Ordem de importância</label><select id="cOrdem">${Array.from({ length: Math.max(8, (S.caixinhas || []).length + 1) }, (_, i) => `<option value="${i + 1}" ${(c.ordem || 0) === i + 1 ? "selected" : ""}>${i + 1}</option>`).join("")}</select></div>
       <div class="campo"><label>Começa em</label><input id="cDesde" type="month" value="${esc(c.desde || "")}"></div></div>
+    <div class="campo"><label>Os gastos desta categoria saem desta caixinha</label><select id="cCobre"><option value="">nenhuma (só guardar)</option>${CATEGORIAS_PADRAO.filter(x => x.grupo).map(x => `<option value="${x.id}" ${c.cobre === x.id ? "selected" : ""}>${esc(x.nome)}</option>`).join("")}</select></div>
     <div class="campo"><label>Para que é</label><select id="cGrupo">
       <option value="20" ${(c.grupo || 20) === 20 ? "selected" : ""}>Guardar: Ordinários (20%)</option>
       <option value="30" ${c.grupo === 30 ? "selected" : ""}>Repor ou comprar quando precisar: Básicos (30%)</option>
@@ -989,7 +1000,7 @@ function abrirCaixinha(c) {
     const ler = () => Object.assign(c, { nome: f.querySelector("#cNome").value.trim() || "Caixinha", saldo: num(f.querySelector("#cSaldo").value) || 0,
       porMes: num(f.querySelector("#cMes").value) || 0, meta: num(f.querySelector("#cMeta").value) || 0, data: f.querySelector("#cData").value || "",
       pausada: f.querySelector("#cPausa").checked || undefined, grupo: Number(f.querySelector("#cGrupo").value),
-      ordem: Number(f.querySelector("#cOrdem").value), desde: f.querySelector("#cDesde").value || "", em: new Date().toISOString() });
+      ordem: Number(f.querySelector("#cOrdem").value), desde: f.querySelector("#cDesde").value || "", cobre: f.querySelector("#cCobre").value || null, em: new Date().toISOString() });
     f.querySelector("#cOk").addEventListener("click", () => { ler(); if (nova) S.caixinhas.push(c); salvar(); fechar(); render(); aviso("Salvo."); });
     const mov = sinal => {
       const t = prompt(sinal > 0 ? "Quanto você guardou?" : "Quanto você usou?", sinal > 0 && c.porMes ? v(c.porMes) : "");
