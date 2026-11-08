@@ -114,7 +114,13 @@ button,input,select{font:inherit;color:inherit}
 .campo{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .campo label{color:var(--dim);font-size:12.5px}
 .campo input,.campo select{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 10px;width:100%}
-.lado{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lado{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
+/* campos (08/11): todos da mesma altura, titulo numa linha so, 16px para o iPhone nao dar zoom */
+.campo label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.campo input,.campo select,.inp{-webkit-appearance:none;appearance:none;height:44px;min-width:0;width:100%;display:block;font-size:16px;margin:0}
+.campo select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.campo input::-webkit-date-and-time-value{text-align:left}
+.jan .acoes .bt{flex:1;text-align:center;padding:11px 12px}
 .acoes{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;flex-wrap:wrap}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .chip{border:1px solid var(--border);background:var(--surface-2);border-radius:99px;padding:5px 11px;cursor:pointer;font-size:12.5px}
@@ -196,7 +202,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08x";
+const VER = "2026-11-08y";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -489,7 +495,6 @@ function paginaMes(r) {
       <div class="card"><div class="r">Ainda vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
     </div>
     ${(S.notasMes || {})[MES] ? `<div class="box" style="border-color:var(--warn)"><b class="warn">Mês incompleto</b><div class="dim" style="font-size:12.5px;margin-top:4px">${esc(S.notasMes[MES])}</div></div>` : ""}
-    ${htmlMiniRegra()}
     <div class="box"><h3>O mês, dia a dia</h3>${tudo.length ? tudo.join("") : '<div class="vazio">Nada neste mês ainda.</div>'}</div>`;
 }
 function htmlMiniRegra() {
@@ -1250,7 +1255,7 @@ function abrirTreino(t) {
   janela(novo ? "Registrar treino" : "Treino", `
     <div class="chips">${TIPOS_TREINO.map(x => `<span class="chip ${x === t.tipo ? "on" : ""}" data-tipo="${esc(x)}">${esc(x)}</span>`).join("")}</div>
     <div class="lado"><div class="campo"><label>Dia</label><input id="tData" type="date" value="${esc(t.data)}"></div>
-      <div class="campo"><label>Minutos (opcional)</label><input id="tMin" inputmode="numeric" value="${t.minutos || ""}"></div></div>
+      <div class="campo"><label>Minutos</label><input id="tMin" inputmode="numeric" value="${t.minutos || ""}"></div></div>
     <div class="campo"><label>Observação (opcional)</label><input id="tObs" value="${esc(t.obs || "")}" placeholder="ex.: pernas, 5 km"></div>
     <div class="acoes">${novo ? "" : '<button class="bt ghost" id="tApagar">Apagar</button>'}<button class="bt pri" id="tOk">Salvar</button></div>`,
   (f, fechar) => {
@@ -1281,9 +1286,9 @@ function abrirComp(c) {
   const novo = !c; c = c || { id: uid(), titulo: "", data: "", hora: "" };
   janela(novo ? "Novo compromisso" : c.titulo, `
     <div class="campo"><label>O que é</label><input id="pTit" value="${esc(c.titulo)}" placeholder="ex.: marcar dermatologista"></div>
-    <div class="lado"><div class="campo"><label>Dia (deixe vazio se ainda vai marcar)</label><input id="pData" type="date" value="${esc(c.data || "")}"></div>
+    <div class="lado"><div class="campo"><label>Dia (opcional)</label><input id="pData" type="date" value="${esc(c.data || "")}"></div>
       <div class="campo"><label>Hora (opcional)</label><input id="pHora" type="time" value="${esc(c.hora || "")}"></div></div>
-    <div class="campo"><label>Onde ou observação (opcional)</label><input id="pObs" value="${esc(c.obs || "")}"></div>
+    <div class="campo"><label>Onde ou observação</label><input id="pObs" value="${esc(c.obs || "")}"></div>
     <div class="acoes">${novo ? "" : '<button class="bt ghost" id="pApagar">Apagar</button>'}<button class="bt pri" id="pOk">Salvar</button></div>`,
   (f, fechar) => {
     f.querySelector("#pOk").addEventListener("click", () => {
@@ -1441,12 +1446,12 @@ function abrirPerfil() {
   const c = cfg(), [mi, ma] = metaTreino();
   janela("Nome e metas", `
     <div class="lado"><div class="campo"><label>Seu nome</label><input id="gNome" value="${esc(c.nome || "")}"></div>
-      <div class="campo"><label>Quem divide a casa com você</label><input id="gParc" value="${esc(c.parceiro || "")}"></div></div>
-    <div class="lado"><div class="campo"><label>Cartão de refeição e alimentação</label><input id="gValeNome" value="${esc(c.valeNome || "")}" placeholder="ex.: Pluxee"></div>
+      <div class="campo"><label>Divide a casa com</label><input id="gParc" value="${esc(c.parceiro || "")}"></div></div>
+    <div class="lado"><div class="campo"><label>Cartão do vale</label><input id="gValeNome" value="${esc(c.valeNome || "")}" placeholder="ex.: Pluxee"></div>
     <div class="campo"><label>Recarrega</label><select id="gVale">
       ${[["ultimo_util", "no último dia útil"], ["primeiro_util", "no primeiro dia útil"]].map(([v, t]) => `<option value="${v}" ${(c.valeDia || "ultimo_util") === v ? "selected" : ""}>${t}</option>`).join("")}</select></div></div>
-    <div class="lado"><div class="campo"><label>Treinos por semana: mínimo</label><input id="gMin" inputmode="numeric" value="${mi}"></div>
-      <div class="campo"><label>máximo</label><input id="gMax" inputmode="numeric" value="${ma}"></div></div>
+    <div class="lado"><div class="campo"><label>Treinos: mínimo</label><input id="gMin" inputmode="numeric" value="${mi}"></div>
+      <div class="campo"><label>Treinos: máximo</label><input id="gMax" inputmode="numeric" value="${ma}"></div></div>
     <div class="acoes"><button class="bt pri" id="gOk">Salvar</button></div>`,
   (f, fechar) => f.querySelector("#gOk").addEventListener("click", () => {
     S.config = Object.assign(cfg(), { nome: f.querySelector("#gNome").value.trim(), parceiro: f.querySelector("#gParc").value.trim(),
