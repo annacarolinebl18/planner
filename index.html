@@ -103,13 +103,14 @@ button,input,select{font:inherit;color:inherit}
 .res-c .v{text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
 .res-c .v small{display:block;font-size:11px;font-weight:400;color:var(--dim)}
 .parc .c small,.parc .tot small{display:block;font-size:9.5px;opacity:.8;line-height:1.1}
-.parc .c.rec{background:var(--surface-2);font-size:8.5px;padding:5px 0;white-space:nowrap;overflow:hidden}
+.parc .c.rec{background:transparent;box-shadow:inset 0 0 0 1px var(--border);color:var(--faint);font-size:8.5px;padding:5px 0;white-space:nowrap;overflow:hidden}
 .parc .tot{text-align:center;font-weight:700;font-size:11px;line-height:1.2}
 .parc .lbl{font-weight:600}
 .parc .sep{border-top:1px solid var(--border);height:4px;margin-top:4px}
 .parc .h{color:var(--dim);text-align:center}
-.parc .c{background:var(--brand-soft);border-radius:6px;text-align:center;padding:3px 0}
-.parc .c.fim{background:var(--ok-soft)}
+.parc .c{background:var(--surface-2);color:var(--faint);border-radius:6px;text-align:center;padding:3px 0}
+.parc .c.agora{background:var(--text);color:var(--bg);font-weight:700}
+.parc .c.fim{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ok);color:var(--ok);font-weight:700}
 .vazio{color:var(--faint);padding:10px 2px}
 .ic{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .ic svg{width:17px;height:17px}
@@ -229,7 +230,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-10c";
+const VER = "2026-11-10d";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -918,13 +919,13 @@ function htmlParcelas() {
   let h = '<div class="parc"><span></span><span></span>' + meses.map(m => `<span class="h">${MESES[Number(m.slice(5)) - 1].slice(0, 3)}</span>`).join("");
   L.sort((a, b) => b.c.filter(Boolean).length - a.c.filter(Boolean).length).forEach(({ x, c }) => {
     h += `<span class="nm">${esc(x.nome)} <span class="faint">(${esc(x.cartao)})</span></span><span class="vp">${n2(x.valor)}</span>`;
-    meses.forEach((m, j) => { const y = c[j]; h += y ? `<span class="c ${y.k === y.n ? "fim" : ""}">${y.k}/${y.n}</span>` : "<span></span>"; });
+    meses.forEach((m, j) => { const y = c[j]; h += y ? `<span class="c ${y.k === y.n ? "fim" : j === 0 ? "agora" : ""}">${y.k}/${y.n}</span>` : "<span></span>"; });
   });
   // assinaturas que caem todo mes no cartao
   cartoes.forEach(cartao => recorrentesCartao(cartao).forEach(r => {
     h += `<span class="nm">${esc(r.nome)} <span class="faint">(${esc(cartao)})</span></span><span class="vp">${n2(r.valor)}</span>` + meses.map(() => '<span class="c rec">recorrente</span>').join("");
   }));
-  return h + "</div>";
+  return h + `</div><div class="leg"><span><i style="background:var(--text)"></i>este mês</span><span><i style="background:var(--surface-2)"></i>próximos</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--ok)"></i>última</span></div>`;
 }
 
 const GRUPOS = [{ g: 50, nome: "Essenciais" }, { g: 30, nome: "Básicos" }, { g: 20, nome: "Ordinários" }];
