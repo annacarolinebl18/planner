@@ -86,6 +86,9 @@ button,input,select{font:inherit;color:inherit}
 .conta-g div{display:flex;justify-content:space-between;padding:2px 0;color:var(--dim)}
 .conta-g .tot{border-top:1px solid var(--border);margin-top:4px;padding-top:5px;font-weight:700;color:var(--bad)}
 .lin .n{width:20px;height:20px;border-radius:50%;background:var(--surface-2);color:var(--dim);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.lin .fat-v{width:104px;flex:none;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.lin .fat-s{width:72px;flex:none;text-align:center}
+.lin .fat-s .pil{margin-left:0}
 .pago-bt.apagar{color:var(--warn);border-color:var(--warn)}
 .pago-bt.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:600}
 .lin.fut{opacity:.8}
@@ -221,7 +224,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09v";
+const VER = "2026-11-09x";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -511,7 +514,7 @@ function resumo(m) {
   const soma = (arr, sinal) => Math.round(arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor), 0) * 100) / 100;
   const comecou = ini <= (S.saldo ? S.saldo.em : "") ? saldoNoDia(addDias(ini, -1)) : null;
   const terminou = fase === "passado" && S.saldo && fim <= S.saldo.em ? saldoNoDia(fim) : null;
-  return { lista, prev, fase, ini, fim, comecou, terminou, entrou: soma(naConta, 1), saiu: soma(naConta, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
+  return { lista, naConta, prev, fase, ini, fim, comecou, terminou, entrou: soma(naConta, 1), saiu: soma(naConta, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
 }
 
 /* ================================================================
@@ -542,6 +545,12 @@ function render() {
   else if (PAG === "busca") { $("#tela").innerHTML = paginaBusca(); ligarBusca(); }
   else $("#tela").innerHTML = paginaMais();
   document.querySelectorAll(".lin[data-id]").forEach(el => el.addEventListener("click", () => abrirLancamento(el.dataset.id)));
+  document.querySelectorAll("[data-cartao]").forEach(el => el.addEventListener("click", () => {
+    const c = el.dataset.cartao, todos = [...new Set(S.faturas.map(f => f.cartao))];
+    if (cartaoLigado(c) && todos.filter(cartaoLigado).length === 1) return; // sempre fica pelo menos um marcado
+    CARTOES_OFF[c] = cartaoLigado(c); render();
+  }));
+  document.querySelectorAll("[data-feito]").forEach(el => el.addEventListener("click", () => abrirListaFeitos(Number(el.dataset.feito), r)));
   document.querySelectorAll("[data-lista]").forEach(el => el.addEventListener("click", () => abrirListaPrevistos(Number(el.dataset.lista), r)));
   document.querySelectorAll("[data-diaadia]").forEach(el => el.addEventListener("click", () => abrirDiaADia(MES)));
   const cxMov = (c, v, nota) => { c.saldo = Math.round(((c.saldo || 0) + v) * 100) / 100; (c.historico = c.historico || []).push({ data: hojeS(), valor: v, nota }); c.em = new Date().toISOString(); };
@@ -612,8 +621,8 @@ function paginaMes(r) {
       <div class="v ${cor(r.terminou)}">${r.terminou != null ? brl(r.terminou) : "sem extrato"}</div>
       <div class="n">${r.comecou != null ? "Começou com " + brl(r.comecou) + " · " : ""}${per}</div></div>
     <div class="cards" style="grid-template-columns:1fr 1fr">
-      <div class="card"><div class="r">Entrou</div><div class="v ok">${brl(r.entrou)}</div></div>
-      <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
+      <div class="card" data-feito="1" style="cursor:pointer"><div class="r">Entrou</div><div class="v ok">${brl(r.entrou)}</div></div>
+      <div class="card" data-feito="-1" style="cursor:pointer"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
     </div>
     ${r.comecou != null && r.terminou != null ? (() => { const conta = Math.round((r.comecou + r.entrou - r.saiu) * 100) / 100, dif = Math.round((r.terminou - conta) * 100) / 100;
       return `<div class="box conta-g" style="margin-top:-4px"><div><span>Começou com</span><span>${brl(r.comecou)}</span></div><div><span>+ Entrou</span><span>${brl(r.entrou)}</span></div>
@@ -631,8 +640,8 @@ function paginaMes(r) {
       <div class="v ${cor(sal ? sal.valor : 0)}">${sal ? brl(sal.valor) : "importe o extrato"}</div>
       <div class="n">${r.comecou != null ? "Começou o mês com " + brl(r.comecou) + " · " : ""}${sal ? esc(sal.conta) + " em " + esc(ddmm(sal.em)) : ""}</div></div>
     <div class="cards">
-      <div class="card"><div class="r">Entrou</div><div class="v ok">${brl(r.entrou)}</div></div>
-      <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
+      <div class="card" data-feito="1" style="cursor:pointer"><div class="r">Entrou</div><div class="v ok">${brl(r.entrou)}</div></div>
+      <div class="card" data-feito="-1" style="cursor:pointer"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
       <div class="card" data-lista="1" style="cursor:pointer"><div class="r">Ainda vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card" data-lista="-1" style="cursor:pointer"><div class="r">Ainda vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
       ${cardGuardar(pl)}
@@ -712,6 +721,14 @@ function htmlEnvelope(c, m) {
   return `<small class="faint" style="display:block">${MESES[Number(m.slice(5)) - 1]}: separou ${brl(guardou)} · gastou ${brl(gastou)} (Pix, débito e cartão) · <span style="color:${resta < 0 ? "var(--bad)" : "var(--ok)"}">${resta < 0 ? "passou " + brl(-resta) : "resta " + brl(resta)}</span></small>`;
 }
 /* card do topo: quanto da para guardar; quando nao da, a conta do porque */
+function abrirListaFeitos(sinal, r) {
+  // as mesmas linhas que somam no card (o que mexeu na conta de verdade)
+  const itens = r.naConta.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).sort((a, b) => (a.data || "").localeCompare(b.data || ""));
+  const total = itens.reduce((s, l) => s + Math.abs(l.valor), 0), nomeMes = MESES[Number(MES.slice(5)) - 1];
+  janela((sinal > 0 ? "Entrou" : "Saiu") + " em " + nomeMes,
+    (itens.length ? itens.map(l => `<div class="lin" style="cursor:default"><span class="d">${ddmm(l.data)}</span><span class="t">${esc(l.nome)}</span><span class="val ${sinal > 0 ? "ok" : ""}">${brl(Math.abs(l.valor))}</span></div>`).join("")
+      + `<div class="lin" style="cursor:default;font-weight:700"><span class="t">Total</span><span class="val">${brl(total)}</span></div>` : '<div class="vazio">Nada neste mês.</div>'));
+}
 function abrirListaPrevistos(sinal, r) {
   const itens = r.prev.filter(p => sinal > 0 ? p.valor > 0 : p.valor < 0).sort((a, b) => a.data.localeCompare(b.data));
   const total = itens.reduce((s, p) => s + Math.abs(p.valor), 0), nomeMes = MESES[Number(MES.slice(5)) - 1];
@@ -842,13 +859,17 @@ function parcelasDoMes(m) {
   });
   return out.sort((a, b) => (b.n - b.k) - (a.n - a.k) || a.nome.localeCompare(b.nome));
 }
+let CARTOES_OFF = {};
+const cartaoLigado = c => !CARTOES_OFF[c];
 function paginaParcelas() {
   // como era (ela, 09/11): a grade e as faturas; a grade comeca no mes das setas
-  const fats = S.faturas.slice().sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
-  return `<div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
+  const todos = [...new Set(S.faturas.map(f => f.cartao))];
+  const fats = S.faturas.filter(f => cartaoLigado(f.cartao)).sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
+  return `<div class="chips" style="justify-content:center">${todos.map(c => `<span class="chip ${cartaoLigado(c) ? "on" : ""}" data-cartao="${esc(c)}">${esc(c)}</span>`).join("")}</div>
+    <div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
     <div class="box"><h3>Faturas</h3>${fats.length ? fats.map(f => `<div class="lin" data-fat="${f.id}"><span class="d">${ddmm(f.vence)}</span>
       <span class="t">${esc(f.cartao)}<small>vence ${ddmm(f.vence)}/${f.vence.slice(0, 4)}</small></span>
-      <span class="val">${brl(-f.total)} ${f.paga ? '<span class="pil ok">paga</span>' : f.emAberto ? '<span class="pil br">em aberto</span>' : '<span class="pil warn">a pagar</span>'}</span></div>`).join("")
+      <span class="fat-v">${brl(-f.total)}</span><span class="fat-s">${f.paga ? '<span class="pil ok">paga</span>' : f.emAberto ? '<span class="pil br">em aberto</span>' : '<span class="pil warn">a pagar</span>'}</span></div>`).join("")
       : '<div class="vazio">Importe as faturas do Mercado Pago e do Nubank.</div>'}</div>`;
 }
 /* assinaturas no cartao: o que aparece igual nas duas ultimas faturas, fora parcela (Claude, Wellhub, Google...) */
@@ -871,8 +892,8 @@ function htmlParcelas() {
   // a partir do mes escolhido, 4 meses; cada quadradinho com o valor da parcela; embaixo as faturas
   const meses = [0, 1, 2, 3].map(k => addMes(MES, k)), linhas = {};
   const n2 = v => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  meses.forEach((m, j) => parcelasDoMes(m).forEach(x => { (linhas[x.chave] = linhas[x.chave] || { x, c: [] }).c[j] = x; }));
-  const L = Object.values(linhas), cartoes = [...new Set(S.faturas.map(f => f.cartao))];
+  meses.forEach((m, j) => parcelasDoMes(m).filter(x => cartaoLigado(x.cartao)).forEach(x => { (linhas[x.chave] = linhas[x.chave] || { x, c: [] }).c[j] = x; }));
+  const L = Object.values(linhas), cartoes = [...new Set(S.faturas.map(f => f.cartao))].filter(cartaoLigado);
   if (!L.length && !cartoes.length) return '<div class="vazio">Importe as faturas para ver as parcelas.</div>';
   let h = '<div class="parc"><span></span>' + meses.map(m => `<span class="h">${MESES[Number(m.slice(5)) - 1].slice(0, 3)}</span>`).join("");
   L.sort((a, b) => b.c.filter(Boolean).length - a.c.filter(Boolean).length).forEach(({ x, c }) => {
