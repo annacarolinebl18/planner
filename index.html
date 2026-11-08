@@ -80,6 +80,7 @@ button,input,select{font:inherit;color:inherit}
 .lin .val{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
 /* botao "Pago" na propria linha do Mes (ela, 09/11: rapido, sem abrir janela) */
 .pago-bt{min-width:76px;flex:none;text-align:center;font-size:12.5px;padding:6px 8px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer}
+.pago-bt.apagar{color:var(--warn);border-color:var(--warn)}
 .pago-bt.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:600}
 .lin.fut{opacity:.8}
 .lin.fut .d:before{content:"";display:inline-block;width:7px;height:7px;border:1.5px dashed var(--warn);border-radius:50%;margin-right:4px}
@@ -208,7 +209,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09d";
+const VER = "2026-11-09e";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -502,7 +503,8 @@ function render() {
 }
 function botaoPago(l) {
   const rec = l.valor > 0;
-  if (l.previsto) return `<button class="pago-bt" data-pagar="${esc(l.id)}">${rec ? "Recebido" : "Pago"}</button>`;
+  // o botao mostra a situacao: "A pagar" -> toque -> "Pago" (verde) -> toque -> "A pagar"
+  if (l.previsto) return `<button class="pago-bt ${rec ? "" : "apagar"}" data-pagar="${esc(l.id)}">${rec ? "A receber" : "A pagar"}</button>`;
   if (l.provisorio) return `<button class="pago-bt on" data-despagar="${esc(l.id)}">${rec ? "Recebido" : "Pago"}</button>`;
   if (l.fatPaga) return `<button class="pago-bt on" data-desfat="${esc(l.fatPaga)}">Pago</button>`;
   return "";
