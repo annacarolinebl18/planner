@@ -85,6 +85,7 @@ button,input,select{font:inherit;color:inherit}
 .lin.fut{opacity:.8}
 .lin.fut .d:before{content:"";display:inline-block;width:7px;height:7px;border:1.5px dashed var(--warn);border-radius:50%;margin-right:4px}
 .pil{font-size:11px;padding:1px 7px;border-radius:99px;white-space:nowrap;margin-left:4px}
+.lin small .pil{font-size:10.5px;padding:0 6px;display:inline-block;margin-top:2px}
 .pil.ok{background:var(--ok-soft)} .pil.warn{background:var(--warn-soft)} .pil.bad{background:var(--bad-soft)} .pil.br{background:var(--brand-soft)}
 .parc{display:grid;grid-template-columns:minmax(120px,1fr) repeat(4,46px);gap:4px;font-size:12px;align-items:center}
 .parc .h{color:var(--dim);text-align:center}
@@ -209,7 +210,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09f";
+const VER = "2026-11-09g";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -507,13 +508,14 @@ function botaoPago(l) {
   if (l.previsto) return `<button class="pago-bt ${rec ? "" : "apagar"}" data-pagar="${esc(l.id)}">${rec ? "A receber" : "A pagar"}</button>`;
   if (l.provisorio) return `<button class="pago-bt on" data-despagar="${esc(l.id)}">${rec ? "Recebido" : "Pago"}</button>`;
   if (l.fatPaga) return `<button class="pago-bt on" data-desfat="${esc(l.fatPaga)}">Pago</button>`;
-  return "";
+  // o que ja aconteceu (veio do extrato ou foi lancado): mesmo padrao, em verde
+  return `<span class="pago-bt on">${rec ? "Recebido" : "Pago"}</span>`;
 }
 function linhaLanc(l, fut) {
   return `<div class="lin ${fut ? "fut" : ""}" data-id="${esc(l.id)}">
       <span class="d">${ddmm(l.venc || l.data)}</span>
-      <span class="t">${esc(l.nome)}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}
-        <small>${ehSalario(l) ? "salário de " + MESES[Number(addMes((l.data || "").slice(0, 7), 1).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}</small></span>
+      <span class="t">${esc(l.nome)}
+        <small>${ehSalario(l) ? "salário de " + MESES[Number(addMes((l.data || "").slice(0, 7), 1).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}</small></span>
       <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor * (l.dividido || 1))}</span>${botaoPago(l)}</div>`;
 }
 function paginaMes(r) {
