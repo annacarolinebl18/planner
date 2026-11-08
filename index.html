@@ -221,7 +221,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09t";
+const VER = "2026-11-09u";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -502,6 +502,12 @@ function resumo(m) {
   // mes que ja fechou nao tem "a pagar": o que nao apareceu no extrato nao vira pendencia
   const prev = fase === "passado" ? [] : previstosDoMes(addMes(m, -1)).concat(previstosDoMes(m)).concat(previstosDoMes(addMes(m, 1)))
     .filter(p => periodoDe(p.data) === m).sort((x, y) => x.data.localeCompare(y.data));
+  if (fase === "futuro") [...new Set(S.faturas.map(f => f.cartao))].forEach(c => {
+    const f = faturaDoMes(c, m); if (f.real || !f.valor) return;
+    const dia = (CICLO[c] || { vence: 5 }).vence;
+    prev.push({ id: "fatprev_" + c + "_" + m, previsto: true, estimado: true, data: m + "-" + String(dia).padStart(2, "0"), nome: "Cartão (" + c + ")", valor: -f.valor, categoria: "cartao" });
+  });
+  prev.sort((x, y) => x.data.localeCompare(y.data));
   const soma = (arr, sinal) => Math.round(arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor), 0) * 100) / 100;
   const comecou = ini <= (S.saldo ? S.saldo.em : "") ? saldoNoDia(addDias(ini, -1)) : null;
   const terminou = fase === "passado" && S.saldo && fim <= S.saldo.em ? saldoNoDia(fim) : null;
@@ -573,6 +579,7 @@ function render() {
 }
 function botaoPago(l) {
   const rec = l.valor > 0;
+  if (l.estimado) return '<span class="pago-bt">Previsão</span>';
   // o botao mostra a situacao: "A pagar" -> toque -> "Pago" (verde) -> toque -> "A pagar"
   if (l.previsto) return `<button class="pago-bt ${rec ? "" : "apagar"}" data-pagar="${esc(l.id)}">${rec ? "A receber" : "A pagar"}</button>`;
   if (l.provisorio) return `<button class="pago-bt on" data-despagar="${esc(l.id)}">${rec ? "Recebido" : "Pago"}</button>`;
@@ -659,7 +666,7 @@ function cartoesEstimados(r) {
 const diaADiaDoMes = m => { const v = (S.diaADia || {})[m]; return v != null ? v : (cfg().diaADia != null ? cfg().diaADia : null); };
 function planoCaixinhas(m, r) {
   if (r.fase === "passado") return null;
-  const definido = diaADiaDoMes(m), dd = definido || 0, cart = r.fase === "futuro" ? cartoesEstimados(r) : 0;
+  const definido = diaADiaDoMes(m), dd = definido || 0, cart = 0;
   const treze = r.prev.filter(eh13).reduce((s, p) => s + p.valor, 0);
   let base = r.vaiEntrar - treze - r.vaiSair - cart;
   const partes = [];
@@ -713,7 +720,7 @@ function abrirListaPrevistos(sinal, r) {
   const itens = r.prev.filter(p => sinal > 0 ? p.valor > 0 : p.valor < 0).sort((a, b) => a.data.localeCompare(b.data));
   const total = itens.reduce((s, p) => s + Math.abs(p.valor), 0), nomeMes = MESES[Number(MES.slice(5)) - 1];
   janela((r.fase === "atual" ? "Ainda vai " : "Vai ") + (sinal > 0 ? "entrar" : "sair") + " em " + nomeMes,
-    (itens.length ? itens.map(p => `<div class="lin" style="cursor:default"><span class="d">${ddmm(p.data)}</span><span class="t">${esc(p.nome)}</span><span class="val ${sinal > 0 ? "ok" : ""}">${brl(Math.abs(p.valor))}</span></div>`).join("")
+    (itens.length ? itens.map(p => `<div class="lin" style="cursor:default"><span class="d">${ddmm(p.data)}</span><span class="t">${esc(p.nome)}${p.estimado ? "<small>previsão: parcelas e assinaturas</small>" : ""}</span><span class="val ${sinal > 0 ? "ok" : ""}">${brl(Math.abs(p.valor))}</span></div>`).join("")
       + `<div class="lin" style="cursor:default;font-weight:700"><span class="t">Total</span><span class="val">${brl(total)}</span></div>` : '<div class="vazio">Nada previsto.</div>'));
 }
 function abrirDiaADia(m) {
