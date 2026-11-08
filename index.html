@@ -229,7 +229,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09z";
+const VER = "2026-11-10a";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -870,8 +870,8 @@ function paginaParcelas() {
   // como era (ela, 09/11): a grade e as faturas; a grade comeca no mes das setas
   const todos = [...new Set(S.faturas.map(f => f.cartao))];
   const fats = S.faturas.filter(f => cartaoLigado(f.cartao)).sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
-  return `<div class="chips" style="justify-content:center">${todos.map(c => `<span class="chip ${cartaoLigado(c) ? "on" : ""}" data-cartao="${esc(c)}">${esc(c)}</span>`).join("")}</div>
-    ${htmlResumoCartoes()}
+  return `${htmlResumoCartoes()}
+    <div class="chips" style="justify-content:center">${todos.map(c => `<span class="chip ${cartaoLigado(c) ? "on" : ""}" data-cartao="${esc(c)}">${esc(c)}</span>`).join("")}</div>
     <div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
     <div class="box"><h3>Faturas</h3>${fats.length ? fats.map(f => `<div class="lin" data-fat="${f.id}"><span class="d">${ddmm(f.vence)}</span>
       <span class="t">${esc(f.cartao)}<small>vence ${ddmm(f.vence)}/${f.vence.slice(0, 4)}</small></span>
