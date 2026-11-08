@@ -121,6 +121,10 @@ button,input,select{font:inherit;color:inherit}
 .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;z-index:30;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .app.semnav{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+/* iPhone (08/11, mesmo acerto do skincare): no app da tela de inicio o topo ficava
+   embaixo da barra de status, borrado. Desce o conteudo e cobre a faixa da barra. */
+.app{padding-top:calc(34px + env(safe-area-inset-top,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
 .areatit{font-size:18px;display:flex;flex-direction:column;line-height:1.2}
 .areatit small{font-size:12px;color:var(--dim);font-weight:400}
 .blocos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
@@ -192,7 +196,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08w";
+const VER = "2026-11-08x";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
