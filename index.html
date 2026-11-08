@@ -150,6 +150,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .chk.on:after{content:"";width:5px;height:10px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
 .riscado{text-decoration:line-through;color:var(--faint)}
 .inp{background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+.casa-bts{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin-top:9px}
+.casa-bts .bt{text-align:center}
 .barra{display:block;height:5px;border-radius:3px;background:var(--surface-2);margin-top:6px;overflow:hidden}
 .barra i{display:block;height:100%}
 .barra i.ok{background:var(--ok)} .barra i.warn{background:var(--warn)} .barra i.bad{background:var(--bad)}
@@ -203,7 +205,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08z";
+const VER = "2026-11-09a";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -367,7 +369,7 @@ const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","ag
 const MES3 = { JAN:1, FEV:2, MAR:3, ABR:4, MAI:5, JUN:6, JUL:7, AGO:8, SET:9, OUT:10, NOV:11, DEZ:12 };
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const cat = id => CATEGORIAS_PADRAO.find(c => c.id === id) || { id, nome: id, grupo: 30 };
-function aviso(t, s = 4) { const a = document.createElement("div"); a.className = "toast"; a.textContent = t; document.body.appendChild(a); setTimeout(() => a.remove(), s * 1000); }
+function aviso(t, s = 4) { document.querySelectorAll(".toast").forEach(x => x.remove()); const a = document.createElement("div"); a.className = "toast"; a.textContent = t; document.body.appendChild(a); setTimeout(() => a.remove(), s * 1000); }
 function ultimoDiaUtil(ano, mes) { let d = new Date(ano, mes, 0); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1); return d; }
 function addMes(m, n) { const [a, b] = m.split("-").map(Number); const d = new Date(a, b - 1 + n, 1); return ym(d); }
 
@@ -434,10 +436,14 @@ function previstosDoMes(m) {
   return out.sort((x, y) => x.data.localeCompare(y.data));
 }
 const ehMovimento = l => !["transferencia", "fatura_interna"].includes(l.categoria);
+/* o salario do fim do mes e do MES SEGUINTE (ela, 08/11): o de 30/10 e o de novembro,
+ * o de 30/11 ja e o de dezembro. No Mes ele aparece na linha do dia, mas nao entra
+ * em "Entrou" nem em "Ainda vai entrar" do mes em que caiu. */
+const ehSalario = l => l.valor > 0 && l.categoria === "renda" && (/SALARIO/i.test(l.descBanco || "") || (l.previsto && /sal/i.test(l.nome || "")));
 function resumo(m) {
   const lista = lancamentosDoMes(m).filter(ehMovimento);
   const prev = previstosDoMes(m);
-  const soma = (arr, sinal) => arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
+  const soma = (arr, sinal) => arr.filter(l => (sinal > 0 ? l.valor > 0 : l.valor < 0) && !ehSalario(l)).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
   return { lista, prev, entrou: soma(lista, 1), saiu: soma(lista, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
 }
 
@@ -478,7 +484,7 @@ function render() {
 function linhaLanc(l, fut) {
   return `<div class="lin ${fut ? "fut" : ""}" data-id="${esc(l.id)}">
       <span class="d">${ddmm(l.data)}</span>
-      <span class="t">${esc(l.nome)}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}
+      <span class="t">${esc(l.nome)}${ehSalario(l) ? '<span class="pil ok">salário de ' + MESES[Number(addMes((l.data || "").slice(0, 7), 1).slice(5)) - 1] + "</span>" : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}
         <small>${esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}</small></span>
       <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor * (l.dividido || 1))}</span></div>`;
 }
@@ -1181,10 +1187,15 @@ function costuma(x) {
   const d = [...new Set((x.historico || []).map(e => e.data))].sort();
   return d.length < 3 ? null : Math.max(1, Math.round(difDias(d[0], d[d.length - 1]) / (d.length - 1)));
 }
-// sem nenhum registro ainda nao tem "proxima": so aparece na tela da Casa
-const proximaCasa = x => x.cadaDias && ultimaVez(x) ? addDias(ultimaVez(x), x.cadaDias) : null;
+// sem nenhum registro ainda nao tem "proxima": so aparece na tela da Casa. Adiada: vale a data escolhida.
+function proximaCasa(x) {
+  const normal = x.cadaDias && ultimaVez(x) ? addDias(ultimaVez(x), x.cadaDias) : null;
+  if (x.adiadoPara && (!normal || x.adiadoPara > normal)) return x.adiadoPara;
+  return normal;
+}
 function estadoCasa(x) {
   const u = ultimaVez(x);
+  if (x.adiadoPara && x.adiadoPara > hojeS()) return { pct: .5, cls: "warn", txt: "adiado para " + ddmm(x.adiadoPara) + (u ? " · última vez em " + ddmm(u) : ""), barra: 0 };
   if (!u) return { pct: 1, cls: "warn", txt: "ainda sem registro", barra: 0 };
   const dias = difDias(u, hojeS()), pct = x.cadaDias ? dias / x.cadaDias : 0;
   return { dias, pct, cls: pct >= 1 ? "bad" : pct >= .75 ? "warn" : "ok", txt: (dias <= 0 ? "hoje" : dias === 1 ? "ontem" : "há " + dias + " dias") + " (" + ddmm(u) + ")" };
@@ -1194,14 +1205,28 @@ function registrarCasa(x, data, quem) {
   x.historico = (x.historico || []).filter(e => !(e.data === data && (e.quem || "eu") === (quem || "eu")));
   x.historico.push({ data, quem: quem || "eu" });
   if (x.histApagado) delete x.histApagado[data + "|" + (quem || "eu")];
-  x.em = new Date().toISOString(); salvar();
+  x.adiadoPara = null; x.em = new Date().toISOString(); salvar();
 }
 function paginaCasa() {
+  const parc = cfg().parceiro || "";
   const lista = (S.casa || []).slice().sort((a, b) => estadoCasa(b).pct - estadoCasa(a).pct);
   return `<div class="box">${lista.length ? lista.map(x => { const e = estadoCasa(x), c = costuma(x);
-    return `<div class="lin" data-casa="${esc(x.id)}"><span class="t">${esc(x.nome)}<small>${esc(e.txt)}${x.cadaDias ? " · a cada " + plural(x.cadaDias, "dia") : ""}${c && c !== x.cadaDias ? " · você costuma " + plural(c, "dia") : ""}</small>
-      <span class="barra"><i class="${e.cls}" style="width:${e.barra === 0 ? 0 : Math.min(100, Math.round(e.pct * 100))}%"></i></span></span>
-      <button class="bt sm" data-fiz="${esc(x.id)}">Fiz hoje</button></div>`; }).join("") : '<div class="vazio">Toque em + para criar um item.</div>'}</div>`;
+    return `<div class="lin" data-casa="${esc(x.id)}"><span class="t">${esc(x.nome)}<small>${x.resp && parc ? "com " + esc(parc) + " · " : ""}${esc(e.txt)}${x.cadaDias ? " · a cada " + plural(x.cadaDias, "dia") : ""}${c && c !== x.cadaDias ? " · você costuma " + plural(c, "dia") : ""}</small>
+      <span class="barra"><i class="${e.cls}" style="width:${e.barra === 0 ? 0 : Math.min(100, Math.round(e.pct * 100))}%"></i></span>
+      <span class="casa-bts"><button class="bt sm" data-fiz="${esc(x.id)}">Feito hoje</button>${parc ? `<button class="bt sm ${x.resp ? "pri" : ""}" data-resp="${esc(x.id)}">${esc(parc)}</button>` : ""}<button class="bt sm ghost" data-adiar="${esc(x.id)}">Adiar</button></span></span></div>`; }).join("") : '<div class="vazio">Toque em + para criar um item.</div>'}</div>`;
+}
+function adiarCasa(x) {
+  janela("Adiar: " + x.nome, `
+    <div class="acoes" style="margin:0 0 14px"><button class="bt pri" id="aAmanha">Amanhã</button></div>
+    <div class="campo"><label>Outra data</label><input id="aData" type="date" value="${addDias(hojeS(), 2)}" min="${addDias(hojeS(), 1)}"></div>
+    <div class="acoes">${x.adiadoPara ? '<button class="bt ghost" id="aTirar">Não adiar mais</button>' : ""}<button class="bt" id="aOk">Adiar para esta data</button></div>`,
+  (f, fechar) => {
+    const adia = d => { x.adiadoPara = d; x.em = new Date().toISOString(); salvar(); fechar(); render(); aviso("Adiado para " + ddmm(d) + "."); };
+    f.querySelector("#aAmanha").addEventListener("click", () => adia(addDias(hojeS(), 1)));
+    f.querySelector("#aOk").addEventListener("click", () => { const d = f.querySelector("#aData").value; if (d && d > hojeS()) adia(d); else aviso("Escolha uma data depois de hoje."); });
+    const t = f.querySelector("#aTirar");
+    if (t) t.addEventListener("click", () => { x.adiadoPara = null; x.em = new Date().toISOString(); salvar(); fechar(); render(); });
+  });
 }
 function abrirCasa(x) {
   const novo = !x;
@@ -1478,8 +1503,17 @@ function ligarArea() {
   document.querySelectorAll("[data-area]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.area)));
   document.querySelectorAll(".lin[data-ev]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.ev)));
   document.querySelectorAll("[data-fiz]").forEach(b => b.addEventListener("click", ev => {
-    ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.fiz);
-    registrarCasa(x, hojeS(), "eu"); render(); aviso("Registrado: " + x.nome + ".");
+    ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.fiz), quem = x.resp && cfg().parceiro ? cfg().parceiro : "eu";
+    registrarCasa(x, hojeS(), quem); render(); aviso("Registrado: " + x.nome + (quem === "eu" ? "" : " (" + quem + ")") + ".");
+  }));
+  // a tarefa fica com a outra pessoa (vai fazer); tocar de novo volta para voce
+  document.querySelectorAll("[data-resp]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.resp), parc = cfg().parceiro;
+    x.resp = x.resp ? null : parc; x.em = new Date().toISOString(); salvar(); render();
+    aviso(x.resp ? x.nome + ": com " + parc + "." : x.nome + ": com você.");
+  }));
+  document.querySelectorAll("[data-adiar]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); adiarCasa(S.casa.find(y => y.id === b.dataset.adiar));
   }));
   document.querySelectorAll(".lin[data-casa]").forEach(el => el.addEventListener("click", () => abrirCasa(S.casa.find(y => y.id === el.dataset.casa))));
   document.querySelectorAll("[data-treinei]").forEach(c => c.addEventListener("click", () => {
