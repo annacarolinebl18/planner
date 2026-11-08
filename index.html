@@ -6,12 +6,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Finanças">
+<meta name="apple-mobile-web-app-title" content="Planner">
 <meta name="theme-color" content="#14121a">
 <link rel="apple-touch-icon" href="icone-180.png">
 <link rel="icon" type="image/png" href="icone-192.png">
 <link rel="manifest" href="manifest.json">
-<title>Finanças</title>
+<title>Personal Planner</title>
 <style>
 /* Planner pessoal. Escuro e rosa por padrão, com mais duas cores.
    O codigo e publico (GitHub Pages); os DADOS nunca ficam aqui: ficam no
@@ -40,6 +40,9 @@
   --g50:#3fbf8a; --g30:#e3a33b; --g20:#4f8fe8; --trilho:#0a0e14;
   color-scheme:dark;
 }
+/* cores das areas do planner (os tres temas usam as mesmas) */
+:root{--azul:#5b9cf0;--lil:#a98bf0}
+:root[data-tema="rosa-claro"]{--azul:#3f7fd6;--lil:#8466d0}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--text)}
@@ -117,6 +120,37 @@ button,input,select{font:inherit;color:inherit}
 .chip{border:1px solid var(--border);background:var(--surface-2);border-radius:99px;padding:5px 11px;cursor:pointer;font-size:12.5px}
 .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;z-index:30;max-width:92vw;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.app.semnav{padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+.areatit{font-size:18px;display:flex;flex-direction:column;line-height:1.2}
+.areatit small{font-size:12px;color:var(--dim);font-weight:400}
+.blocos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.bloco{border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:6px;min-height:104px;border:1px solid var(--border);background:var(--surface);cursor:pointer;text-align:left}
+.bloco svg{width:26px;height:26px}
+.bloco b{font-size:14.5px;color:var(--text)}
+.bloco small{color:var(--dim);font-size:12px;line-height:1.3}
+.bloco.larga{grid-column:span 2;flex-direction:row;align-items:center;gap:12px;min-height:0}
+.c-fin{color:var(--brand)} .c-casa{color:var(--ok)} .c-comp{color:var(--azul)} .c-ativ{color:var(--warn)} .c-cal{color:var(--lil)}
+.tag{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.tag.fin{background:var(--brand)} .tag.casa{background:var(--ok)} .tag.comp{background:var(--azul)} .tag.ativ{background:var(--warn)}
+.lin .dd{width:40px;text-align:center;font-size:11px;color:var(--dim);line-height:1.2;flex:none}
+.lin .dd b{display:block;font-size:15px;color:var(--text)}
+.barra{display:block;height:5px;border-radius:3px;background:var(--surface-2);margin-top:6px;overflow:hidden}
+.barra i{display:block;height:100%}
+.barra i.ok{background:var(--ok)} .barra i.warn{background:var(--warn)} .barra i.bad{background:var(--bad)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:13px}
+.cal .s{color:var(--faint);font-size:11px;padding-bottom:4px}
+.cal .n{padding:6px 0 4px;border-radius:9px;cursor:pointer}
+.cal .n.hj{outline:1.5px solid var(--brand)}
+.cal .n.sel{background:var(--brand);color:#fff;font-weight:700}
+.cal .pts{display:flex;justify-content:center;gap:2px;height:5px;margin-top:3px}
+.cal .pts i{width:5px;height:5px;border-radius:50%}
+.cal .pts i.fin{background:var(--brand)} .cal .pts i.casa{background:var(--ok)} .cal .pts i.comp{background:var(--azul)} .cal .pts i.ativ{background:var(--warn)}
+.cal .n.sel .pts i{background:#fff}
+.legenda{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;font-size:11.5px;color:var(--dim);margin-top:10px}
+.sem{display:grid;grid-template-columns:52px 1fr 26px;gap:8px;align-items:center;font-size:12px;margin:5px 0}
+.sem .tr{height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+.sem .tr i{display:block;height:100%;border-radius:5px}
+.sem .tr i.ok{background:var(--ok)} .sem .tr i.warn{background:var(--warn)}
 table.t{width:100%;border-collapse:collapse;font-size:13px}
 table.t td,table.t th{padding:6px 4px;border-bottom:1px solid var(--border);text-align:left}
 table.t th{color:var(--dim);font-weight:600;font-size:12px}
@@ -126,16 +160,23 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <body>
 <div class="app">
   <div class="topo">
-    <div class="mesnav"><button class="ic" id="mesAnt" aria-label="mês anterior">‹</button><b id="mesNome"></b><button class="ic" id="mesProx" aria-label="próximo mês">›</button></div>
+    <button class="ic" id="btInicio" title="Início" aria-label="Início" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+    <b class="areatit" id="areaTit" hidden></b>
+    <div class="mesnav" id="mesNav"><button class="ic" id="mesAnt" aria-label="mês anterior">‹</button><b id="mesNome"></b><button class="ic" id="mesProx" aria-label="próximo mês">›</button></div>
     <div class="acoes-topo">
+      <button class="ic pri" id="btNovo" title="Novo" aria-label="Novo" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ic" id="btAjustes" title="Ajustes" aria-label="Ajustes" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg></button>
+      <span id="acoesFin" style="display:contents">
       <button class="ic" id="btBusca" title="Buscar gastos" aria-label="Buscar gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
       <button class="ic" id="btImportar" title="Importar extrato ou fatura" aria-label="Importar extrato ou fatura"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></button>
       <button class="ic pri" id="btLancar" title="Lançar" aria-label="Lançar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      </span>
     </div>
   </div>
   <div id="tela"></div>
 </div>
 <nav class="nav">
+  <button data-pag="inicio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 12 4l9 8"/><path d="M5 10v10h14V10"/></svg>Início</button>
   <button data-pag="mes" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Mês</button>
   <button data-pag="parcelas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Parcelas</button>
   <button data-pag="regra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>50/30/20</button>
@@ -146,7 +187,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08u";
+const VER = "2026-11-08v";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -173,7 +214,8 @@ const CATEGORIAS_PADRAO = [
 ];
 function vazio() {
   return { versao: 1, salvoEm: null, saldo: null, categorias: CATEGORIAS_PADRAO.slice(),
-           apelidos: [], fixos: [], lancamentos: [], faturas: [], metas: [], caixinhas: [], apagados: {} };
+           apelidos: [], fixos: [], lancamentos: [], faturas: [], metas: [], caixinhas: [], apagados: {},
+           casa: [], treinos: [], compromissos: [], config: {} };
 }
 let S = carregar();
 S.categorias = CATEGORIAS_PADRAO.slice();
@@ -183,6 +225,7 @@ function carregar() {
 }
 function salvar() {
   S.salvoEm = new Date().toISOString();
+  try { S.agendaCal = agendaParaCalendario(); } catch (e) { console.error(e); }
   try { localStorage.setItem(CHAVE, JSON.stringify(S)); } catch (e) { aviso("Não consegui salvar no aparelho."); }
   agendarEnvio();
 }
@@ -213,7 +256,7 @@ function limparApagados(d) {
   const ap = d.apagados || {};
   if (!Object.keys(ap).length) return d;
   d.lancamentos = (d.lancamentos || []).filter(x => vivo(x, ap, y => y.chave ? ["c|" + y.chave] : []));
-  ["fixos", "caixinhas", "faturas"].forEach(k => { d[k] = (d[k] || []).filter(x => vivo(x, ap)); });
+  ["fixos", "caixinhas", "faturas", "casa", "treinos", "compromissos"].forEach(k => { d[k] = (d[k] || []).filter(x => vivo(x, ap)); });
   d.apelidos = (d.apelidos || []).filter(x => vivo(x, ap, y => ["a|" + chaveApelido(y)]));
   return d;
 }
@@ -232,7 +275,16 @@ function juntarDados(meu, deles) {
   const r = Object.assign({}, deles, meu);
   r.lancamentos = uniao(meu.lancamentos, deles.lancamentos, x => x.chave || x.id);
   r.apelidos = uniao(meu.apelidos, deles.apelidos, chaveApelido);
-  ["fixos", "caixinhas", "faturas"].forEach(k => { r[k] = uniao(meu[k], deles[k], x => x.id); });
+  ["fixos", "caixinhas", "faturas", "treinos", "compromissos"].forEach(k => { r[k] = uniao(meu[k], deles[k], x => x.id); });
+  // casa: o historico dos dois aparelhos se soma (cada um pode ter marcado "fiz hoje")
+  r.casa = uniao(meu.casa, deles.casa, x => x.id).map(x => {
+    const o = (deles.casa || []).find(y => y.id === x.id), m = (meu.casa || []).find(y => y.id === x.id);
+    if (!o || !m) return x;
+    const tira = Object.assign({}, o.histApagado || {}, m.histApagado || {}), h = {};
+    [].concat(o.historico || [], m.historico || []).forEach(e => { h[e.data + "|" + (e.quem || "")] = e; });
+    return Object.assign({}, x, { histApagado: tira, historico: Object.keys(h).filter(k => !tira[k]).map(k => h[k]).sort((a, b) => a.data.localeCompare(b.data)) });
+  });
+  r.config = Object.assign({}, deles.config || {}, meu.config || {});
   if (deles.saldo && (!meu.saldo || deles.saldo.em > meu.saldo.em)) r.saldo = deles.saldo;
   r.notasMes = Object.assign({}, deles.notasMes || {}, meu.notasMes || {});
   r.apagados = ap;
@@ -243,7 +295,7 @@ function agendarEnvio() { if (!drive()) return; clearTimeout(_envio); _envio = s
 async function enviarDrive(tentativa = 0) {
   try {
     const r = await pedirCofre({ acao: "gravar", dados: S, base: _baseDrive });
-    if (r.ok) { _baseDrive = r.salvoEm; return; }
+    if (r.ok) { _baseDrive = r.salvoEm; guardarIcs(r.ics); return; }
     if (r.conflito && tentativa < 2) {
       S = Object.assign(vazio(), juntarDados(S, r.dados)); S.categorias = CATEGORIAS_PADRAO.slice();
       S.salvoEm = new Date().toISOString(); _baseDrive = r.dados.salvoEm;
@@ -258,14 +310,17 @@ async function puxarDrive(avisar) {
   try {
     const r = await pedirCofre({ acao: "ler" });
     if (!r.ok) { aviso("Drive: " + (r.motivo || "não li"), 6); return; }
+    guardarIcs(r.ics);
     if (!r.dados) { await enviarDrive(); if (avisar) aviso("Drive ligado. Seus dados foram para o Drive."); return; }
     _baseDrive = r.dados.salvoEm;
     if (!S.salvoEm || r.dados.salvoEm > S.salvoEm) { S = Object.assign(vazio(), juntarDados(r.dados, S)); S.categorias = CATEGORIAS_PADRAO.slice(); }
     else if (S.salvoEm > r.dados.salvoEm) { S = Object.assign(vazio(), juntarDados(S, r.dados)); S.categorias = CATEGORIAS_PADRAO.slice(); await enviarDrive(); }
+    semearCasa();
     try { localStorage.setItem(CHAVE, JSON.stringify(S)); } catch (e) {}
     render(); if (avisar) aviso("Drive ligado e atualizado.");
   } catch (e) { if (avisar) aviso("Não consegui falar com o Drive. Confira o endereço e a internet.", 7); }
 }
+function guardarIcs(t) { const d = drive(); if (t && d && d.ics !== t) { d.ics = t; guardarDrive(d); } }
 function abrirDrive() {
   const d = drive() || {};
   janela("Google Drive", `
@@ -375,6 +430,17 @@ function resumo(m) {
  * ================================================================ */
 let PAG = "mes";
 function render() {
+  const fin = AREA === "fin";
+  $("#mesNav").hidden = !fin; $("#acoesFin").hidden = !fin; $("#acoesFin").style.display = fin ? "contents" : "none";
+  $("#btInicio").hidden = fin || AREA === "inicio";
+  $("#btNovo").hidden = !["casa", "comp", "ativ"].includes(AREA);
+  $("#btAjustes").hidden = AREA !== "inicio";
+  $("#areaTit").hidden = fin;
+  const hj = new Date();
+  $("#areaTit").innerHTML = AREA === "inicio" ? `Olá${cfg().nome ? ", " + esc(cfg().nome) : ""}<small>${SEMLONGO[hj.getDay()]}, ${ddmm(ymd(hj))}</small>` : esc(AREAS[AREA]);
+  document.querySelector(".nav").hidden = !fin;
+  document.querySelector(".app").classList.toggle("semnav", !fin);
+  if (!fin) { $("#tela").innerHTML = paginaArea(); ligarArea(); return; }
   const [a, b] = MES.split("-").map(Number);
   $("#mesNome").textContent = MESES[b - 1] + " " + a;
   document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("on", x.dataset.pag === PAG));
@@ -702,31 +768,43 @@ function abrirCaixinha(c) {
 
 function paginaMais() {
   const n = S.lancamentos.filter(l => l.aClassificar && recente(l)).length;
+  return `<div class="box"><h3>Ajustes das finanças</h3>
+      <div class="lin" id="mFixos"><span class="t">Fixos do mês<small>salário, contas, unha, pular um mês, mudar valor</small></span><span class="val">${S.fixos.length}</span></div>
+      <div class="lin" id="mClass"><span class="t">A classificar<small>últimos 40 dias</small></span><span class="val ${n ? "warn" : ""}">${n}</span></div>
+      <div class="lin" id="mApelidos"><span class="t">Nomes que você deu<small>como cada coisa do banco aparece aqui</small></span><span class="val">${S.apelidos.length}</span></div></div>
+    <div class="faint" style="font-size:11.5px;text-align:center">Cores, Google Drive e calendário do iPhone ficam em Ajustes, no Início.</div>`;
+}
+/* Ajustes gerais (engrenagem do Inicio): valem para o app todo */
+function paginaAjustes() {
   const t = temaAtual();
-  return `<div class="box"><h3>Cores</h3><div class="temas">
+  return `<div class="box"><h3>Cores do aplicativo</h3><div class="temas">
       <div class="tema ${t === "rosa-escuro" ? "on" : ""}" data-tema="rosa-escuro"><span style="background:linear-gradient(135deg,#14121a 55%,#e85d9c)"></span>Rosa escuro</div>
       <div class="tema ${t === "rosa-claro" ? "on" : ""}" data-tema="rosa-claro"><span style="background:linear-gradient(135deg,#fff7fa 55%,#e0709a)"></span>Rosa claro</div>
       <div class="tema ${t === "azul-escuro" ? "on" : ""}" data-tema="azul-escuro"><span style="background:linear-gradient(135deg,#0e131b 55%,#4f8fe8)"></span>Azul escuro</div></div></div>
-    <div class="box"><h3>Ajustes</h3>
-      <div class="lin" id="mFixos"><span class="t">Fixos do mês<small>salário, contas, unha, pular um mês, mudar valor</small></span><span class="val">${S.fixos.length}</span></div>
-      <div class="lin" id="mClass"><span class="t">A classificar<small>últimos 40 dias</small></span><span class="val ${n ? "warn" : ""}">${n}</span></div>
-      <div class="lin" id="mApelidos"><span class="t">Nomes que você deu<small>como cada coisa do banco aparece aqui</small></span><span class="val">${S.apelidos.length}</span></div>
+    <div class="box"><h3>Planner</h3>
+      <div class="lin" id="mPerfil"><span class="t">Nome e metas<small>seu nome, quem divide a casa, treinos por semana</small></span></div>
+      <div class="lin" id="mCal"><span class="t">Calendário do iPhone<small>contas e compromissos no calendário do celular</small></span></div></div>
+    <div class="box"><h3>Dados</h3>
       <div class="lin" id="mDrive"><span class="t">Google Drive<small>${drive() ? "ligado: celular e computador com os mesmos dados" : "desligado: os dados ficam só neste aparelho"}</small></span><span class="val ${drive() ? "ok" : "warn"}">${drive() ? "ligado" : "ligar"}</span></div>
       <div class="lin" id="mBackup"><span class="t">Salvar uma cópia dos dados</span></div>
       <div class="lin" id="mRestaurar"><span class="t">Abrir uma cópia dos dados</span></div></div>
     <div class="faint" style="font-size:11.5px;text-align:center">versão ${VER}</div>`;
 }
-function ligarMais() {
+function ligarAjustes() {
   document.querySelectorAll(".tema[data-tema]").forEach(el => el.addEventListener("click", () => { usarTema(el.dataset.tema); render(); }));
-  $("#mFixos").addEventListener("click", abrirFixos);
+  $("#mPerfil").addEventListener("click", abrirPerfil);
+  $("#mCal").addEventListener("click", abrirCalIphone);
   $("#mDrive").addEventListener("click", abrirDrive);
-  $("#mClass").addEventListener("click", abrirClassificar);
-  $("#mApelidos").addEventListener("click", abrirApelidos);
   $("#mBackup").addEventListener("click", () => {
     const b = new Blob([JSON.stringify(S, null, 1)], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "planner-pessoal-" + ymd(new Date()) + ".json"; a.click();
   });
   $("#mRestaurar").addEventListener("click", () => $("#arquivo").click());
+}
+function ligarMais() {
+  $("#mFixos").addEventListener("click", abrirFixos);
+  $("#mClass").addEventListener("click", abrirClassificar);
+  $("#mApelidos").addEventListener("click", abrirApelidos);
 }
 const recente = l => (l.data || "") >= ymd(new Date(Date.now() - 40 * 864e5));
 function temaAtual() { try { return localStorage.getItem("planner-pessoal-tema") || "rosa-escuro"; } catch (e) { return "rosa-escuro"; } }
@@ -1044,6 +1122,327 @@ async function importar(arquivos) {
   render();
 }
 
+/* ================================================================
+ * PLANNER (08/11): Inicio, Casa, Compromissos, Atividade fisica, Calendario
+ * Modelo A escolhido por ela: menu em blocos + proximos 7 dias.
+ * ================================================================ */
+let AREA = "inicio";
+const AREAS = { inicio: "", fin: "Finanças", casa: "Casa", comp: "Compromissos", ativ: "Atividade física", cal: "Calendário", ajustes: "Ajustes" };
+const dt = s => { const [a, b, c] = s.split("-").map(Number); return new Date(a, b - 1, c); };
+const addDias = (s, n) => { const d = dt(s); d.setDate(d.getDate() + n); return ymd(d); };
+const difDias = (a, b) => Math.round((dt(b) - dt(a)) / 864e5);
+const hojeS = () => ymd(new Date());
+const SEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const SEMLONGO = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const segunda = s => { const d = dt(s); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return ymd(d); };
+const cfg = () => S.config || (S.config = {});
+const plural = (n, p) => n + " " + p + (n === 1 ? "" : "s");
+const ICO = {
+  fin: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/>',
+  casa: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+  comp: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  ativ: '<path d="M22 12h-4l-3 8-6-16-3 8H2"/>',
+  cal: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>'
+};
+const svgA = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</svg>`;
+
+/* ---------- Casa: "ultima vez" + de quanto em quanto tempo ---------- */
+const CASA_PADRAO = [
+  ["roupa_cama", "Trocar roupa de cama", 15], ["varrer", "Varrer", 2], ["aspirar", "Aspirar", 7],
+  ["areia", "Limpar a caixa de areia dos gatos", 2], ["agua_racao", "Verificar água e ração dos gatos", 2],
+  ["louca", "Lavar louça", 1], ["roupa", "Lavar roupa", 4], ["banheiro", "Lavar o banheiro", 7],
+  ["dobrar", "Dobrar roupas", 4], ["escritorio", "Arrumar o escritório", 7], ["bagunca", "Guardar as coisas espalhadas", 3],
+  ["gas", "Trocar o gás", 60]];
+function semearCasa() {
+  // ids fixos: se dois aparelhos semearem, a juntada nao duplica
+  if (S.casaSemeada) return;
+  S.casa = S.casa || [];
+  CASA_PADRAO.forEach(([id, nome, dias]) => { if (!S.casa.some(x => x.id === "casa_" + id)) S.casa.push({ id: "casa_" + id, nome, cadaDias: dias, historico: [] }); });
+  S.casaSemeada = true;
+}
+const ultimaVez = x => (x.historico || []).reduce((m, e) => e.data > m ? e.data : m, "");
+function costuma(x) {
+  const d = [...new Set((x.historico || []).map(e => e.data))].sort();
+  return d.length < 3 ? null : Math.max(1, Math.round(difDias(d[0], d[d.length - 1]) / (d.length - 1)));
+}
+// sem nenhum registro ainda nao tem "proxima": so aparece na tela da Casa
+const proximaCasa = x => x.cadaDias && ultimaVez(x) ? addDias(ultimaVez(x), x.cadaDias) : null;
+function estadoCasa(x) {
+  const u = ultimaVez(x);
+  if (!u) return { pct: 1, cls: "warn", txt: "ainda sem registro", barra: 0 };
+  const dias = difDias(u, hojeS()), pct = x.cadaDias ? dias / x.cadaDias : 0;
+  return { dias, pct, cls: pct >= 1 ? "bad" : pct >= .75 ? "warn" : "ok", txt: (dias <= 0 ? "hoje" : dias === 1 ? "ontem" : "há " + dias + " dias") + " (" + ddmm(u) + ")" };
+}
+const quemNome = q => !q || q === "eu" ? "você" : q;
+function registrarCasa(x, data, quem) {
+  x.historico = (x.historico || []).filter(e => !(e.data === data && (e.quem || "eu") === (quem || "eu")));
+  x.historico.push({ data, quem: quem || "eu" });
+  if (x.histApagado) delete x.histApagado[data + "|" + (quem || "eu")];
+  x.em = new Date().toISOString(); salvar();
+}
+function paginaCasa() {
+  const lista = (S.casa || []).slice().sort((a, b) => estadoCasa(b).pct - estadoCasa(a).pct);
+  return `<div class="box">${lista.length ? lista.map(x => { const e = estadoCasa(x), c = costuma(x);
+    return `<div class="lin" data-casa="${esc(x.id)}"><span class="t">${esc(x.nome)}<small>${esc(e.txt)}${x.cadaDias ? " · a cada " + plural(x.cadaDias, "dia") : ""}${c && c !== x.cadaDias ? " · você costuma " + plural(c, "dia") : ""}</small>
+      <span class="barra"><i class="${e.cls}" style="width:${e.barra === 0 ? 0 : Math.min(100, Math.round(e.pct * 100))}%"></i></span></span>
+      <button class="bt sm" data-fiz="${esc(x.id)}">Fiz hoje</button></div>`; }).join("") : '<div class="vazio">Toque em + para criar um item.</div>'}</div>`;
+}
+function abrirCasa(x) {
+  const novo = !x;
+  x = x || { id: "casa_" + uid(), nome: "", cadaDias: 7, historico: [] };
+  const parc = cfg().parceiro || "";
+  const hist = (x.historico || []).slice().sort((a, b) => b.data.localeCompare(a.data)).slice(0, 12);
+  janela(novo ? "Novo item da casa" : x.nome, `
+    <div class="campo"><label>O que é</label><input id="kNome" value="${esc(x.nome)}" placeholder="ex.: trocar toalhas"></div>
+    <div class="campo"><label>A cada quantos dias</label><input id="kDias" inputmode="numeric" value="${x.cadaDias || ""}"></div>
+    ${novo ? "" : `<div class="campo"><label>Registrar que foi feito</label><div class="lado"><input id="kData" type="date" value="${hojeS()}">
+      <select id="kQuem"><option value="eu">por você</option>${parc ? `<option value="${esc(parc)}">por ${esc(parc)}</option>` : ""}</select></div></div>
+    <div class="acoes" style="justify-content:flex-start;margin-top:-2px"><button class="bt" id="kReg">Registrar</button></div>
+    <div class="box" style="margin-top:12px"><h3>Últimas vezes</h3>${hist.length ? hist.map((e, i) => `<div class="lin" style="cursor:default"><span class="t">${ddmm(e.data)}/${e.data.slice(0, 4)}<small>${esc(quemNome(e.quem))}</small></span><button class="bt sm ghost" data-h="${i}">tirar</button></div>`).join("") : '<div class="vazio">Nenhum registro ainda.</div>'}</div>`}
+    <div class="acoes">${novo ? "" : '<button class="bt ghost" id="kApagar">Apagar item</button>'}<button class="bt pri" id="kOk">Salvar</button></div>`,
+  (f, fechar) => {
+    f.querySelector("#kOk").addEventListener("click", () => {
+      const nome = f.querySelector("#kNome").value.trim(); if (!nome) { aviso("Coloque o nome."); return; }
+      x.nome = nome; x.cadaDias = Math.max(0, parseInt(f.querySelector("#kDias").value, 10) || 0) || null; x.em = new Date().toISOString();
+      if (novo) S.casa.push(x);
+      salvar(); fechar(); render(); aviso("Salvo.");
+    });
+    if (novo) return;
+    f.querySelector("#kReg").addEventListener("click", () => { registrarCasa(x, f.querySelector("#kData").value || hojeS(), f.querySelector("#kQuem").value); fechar(); render(); aviso("Registrado."); });
+    f.querySelectorAll("[data-h]").forEach(b => b.addEventListener("click", () => {
+      const e = hist[Number(b.dataset.h)]; const k = e.data + "|" + (e.quem || "eu");
+      x.histApagado = Object.assign(x.histApagado || {}, { [k]: true });
+      x.historico = x.historico.filter(y => y !== e); x.em = new Date().toISOString(); salvar(); fechar(); abrirCasa(x); render();
+    }));
+    f.querySelector("#kApagar").addEventListener("click", () => { if (confirm("Apagar " + x.nome + "?")) { lapide("i|" + x.id); S.casa = S.casa.filter(y => y.id !== x.id); salvar(); fechar(); render(); } });
+  });
+}
+
+/* ---------- Atividade fisica: so registrar o treino feito ---------- */
+const TIPOS_TREINO = ["Musculação", "Esteira", "Corrida", "HIIT", "Cardio"];
+const metaTreino = () => [cfg().treinoMin || 4, cfg().treinoMax || 6];
+const diasTreino = seg => new Set((S.treinos || []).filter(t => t.data >= seg && t.data <= addDias(seg, 6)).map(t => t.data)).size;
+function paginaAtiv() {
+  const h = hojeS(), seg = segunda(h), [mi, ma] = metaTreino(), n = diasTreino(seg);
+  const faltam = Math.max(0, mi - n), restam = 7 - ((dt(h).getDay() + 6) % 7);
+  const semanas = Array.from({ length: 8 }, (_, i) => addDias(seg, -7 * (7 - i)));
+  const ult = (S.treinos || []).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.em || "").localeCompare(a.em || "")).slice(0, 15);
+  return `<div class="hero"><div class="r">Nesta semana</div><div class="v">${n} <span style="font-size:16px;font-weight:600" class="dim">de ${mi} a ${ma} dias</span></div>
+      <div class="n">${n >= mi ? "Meta da semana alcançada." : "Faltam " + plural(faltam, "dia") + " de treino; a semana tem mais " + plural(restam, "dia") + "."}</div></div>
+    <div class="box"><h3>Treinei hoje</h3><div class="chips" style="margin:0">${TIPOS_TREINO.map(t => `<span class="chip" data-treinei="${esc(t)}">${esc(t)}</span>`).join("")}</div></div>
+    <div class="box"><h3>Últimas semanas</h3>${semanas.map(sm => { const q = diasTreino(sm);
+      return `<div class="sem"><span class="dim">${ddmm(sm)}</span><span class="tr"><i class="${q >= mi ? "ok" : "warn"}" style="width:${Math.round(q / 7 * 100)}%"></i></span><b style="text-align:right">${q}</b></div>`; }).join("")}</div>
+    <div class="box"><h3>Treinos</h3>${ult.length ? ult.map(t => { const d = dt(t.data);
+      return `<div class="lin" data-treino="${esc(t.id)}"><span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span><span class="t"><i class="tag ativ"></i>${esc(t.tipo)}<small>${ddmm(t.data)}${t.minutos ? " · " + t.minutos + " min" : ""}${t.obs ? " · " + esc(t.obs) : ""}</small></span></div>`; }).join("") : '<div class="vazio">Toque no tipo de treino acima para registrar.</div>'}</div>`;
+}
+function abrirTreino(t) {
+  const novo = !t; t = t || { id: uid(), data: hojeS(), tipo: "Musculação" };
+  janela(novo ? "Registrar treino" : "Treino", `
+    <div class="chips">${TIPOS_TREINO.map(x => `<span class="chip ${x === t.tipo ? "on" : ""}" data-tipo="${esc(x)}">${esc(x)}</span>`).join("")}</div>
+    <div class="lado"><div class="campo"><label>Dia</label><input id="tData" type="date" value="${esc(t.data)}"></div>
+      <div class="campo"><label>Minutos (opcional)</label><input id="tMin" inputmode="numeric" value="${t.minutos || ""}"></div></div>
+    <div class="campo"><label>Observação (opcional)</label><input id="tObs" value="${esc(t.obs || "")}" placeholder="ex.: pernas, 5 km"></div>
+    <div class="acoes">${novo ? "" : '<button class="bt ghost" id="tApagar">Apagar</button>'}<button class="bt pri" id="tOk">Salvar</button></div>`,
+  (f, fechar) => {
+    let tipo = t.tipo;
+    f.querySelectorAll("[data-tipo]").forEach(c => c.addEventListener("click", () => { tipo = c.dataset.tipo; f.querySelectorAll("[data-tipo]").forEach(x => x.classList.toggle("on", x === c)); }));
+    f.querySelector("#tOk").addEventListener("click", () => {
+      Object.assign(t, { tipo, data: f.querySelector("#tData").value || hojeS(), minutos: parseInt(f.querySelector("#tMin").value, 10) || null, obs: f.querySelector("#tObs").value.trim() || null, em: new Date().toISOString() });
+      if (novo) (S.treinos = S.treinos || []).push(t);
+      salvar(); fechar(); render(); aviso("Treino registrado.");
+    });
+    const ap = f.querySelector("#tApagar");
+    if (ap) ap.addEventListener("click", () => { lapide("i|" + t.id); S.treinos = S.treinos.filter(x => x.id !== t.id); salvar(); fechar(); render(); aviso("Apagado."); });
+  });
+}
+
+/* ---------- Compromissos (com lista "a marcar") ---------- */
+function paginaComp() {
+  const h = hojeS(), L = S.compromissos || [];
+  const ord = (a, b) => (a.data + (a.hora || "")).localeCompare(b.data + (b.hora || ""));
+  const marcar = L.filter(c => !c.data), prox = L.filter(c => c.data && c.data >= h).sort(ord), pass = L.filter(c => c.data && c.data < h).sort(ord).reverse().slice(0, 10);
+  const lin = c => { const d = c.data ? dt(c.data) : null;
+    return `<div class="lin" data-comp="${esc(c.id)}">${d ? `<span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span>` : ""}<span class="t"><i class="tag comp"></i>${esc(c.titulo)}<small>${c.data ? ddmm(c.data) + (c.hora ? " · " + esc(c.hora) : "") : "ainda não marcado"}${c.obs ? " · " + esc(c.obs) : ""}</small></span></div>`; };
+  return `<div class="box"><h3>A marcar</h3>${marcar.length ? marcar.map(lin).join("") : '<div class="vazio">Nada para marcar. Coisas como "marcar médico" ficam aqui até você marcar a data.</div>'}</div>
+    <div class="box"><h3>Próximos</h3>${prox.length ? prox.map(lin).join("") : '<div class="vazio">Nenhum compromisso com data.</div>'}</div>
+    ${pass.length ? `<div class="box"><h3>Já passaram</h3>${pass.map(lin).join("")}</div>` : ""}`;
+}
+function abrirComp(c) {
+  const novo = !c; c = c || { id: uid(), titulo: "", data: "", hora: "" };
+  janela(novo ? "Novo compromisso" : c.titulo, `
+    <div class="campo"><label>O que é</label><input id="pTit" value="${esc(c.titulo)}" placeholder="ex.: marcar dermatologista"></div>
+    <div class="lado"><div class="campo"><label>Dia (deixe vazio se ainda vai marcar)</label><input id="pData" type="date" value="${esc(c.data || "")}"></div>
+      <div class="campo"><label>Hora (opcional)</label><input id="pHora" type="time" value="${esc(c.hora || "")}"></div></div>
+    <div class="campo"><label>Onde ou observação (opcional)</label><input id="pObs" value="${esc(c.obs || "")}"></div>
+    <div class="acoes">${novo ? "" : '<button class="bt ghost" id="pApagar">Apagar</button>'}<button class="bt pri" id="pOk">Salvar</button></div>`,
+  (f, fechar) => {
+    f.querySelector("#pOk").addEventListener("click", () => {
+      const tit = f.querySelector("#pTit").value.trim(); if (!tit) { aviso("Coloque o que é."); return; }
+      Object.assign(c, { titulo: tit, data: f.querySelector("#pData").value || "", hora: f.querySelector("#pHora").value || "", obs: f.querySelector("#pObs").value.trim() || null, em: new Date().toISOString() });
+      if (novo) (S.compromissos = S.compromissos || []).push(c);
+      salvar(); fechar(); render(); aviso("Salvo.");
+    });
+    const ap = f.querySelector("#pApagar");
+    if (ap) ap.addEventListener("click", () => { lapide("i|" + c.id); S.compromissos = S.compromissos.filter(x => x.id !== c.id); salvar(); fechar(); render(); aviso("Apagado."); });
+  });
+}
+
+/* ---------- tudo junto: eventos de um periodo ---------- */
+function eventos(de, ate) {
+  const out = [];
+  for (let m = de.slice(0, 7); m <= ate.slice(0, 7); m = addMes(m, 1)) {
+    previstosDoMes(m).forEach(p => { if (p.data >= de && p.data <= ate)
+      out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: p.valor < 0 ? "a pagar" : "a receber", uid: "fin-" + p.id + "-" + p.data }); });
+  }
+  (S.compromissos || []).forEach(c => { if (c.data && c.data >= de && c.data <= ate)
+    out.push({ data: c.data, hora: c.hora || null, tipo: "comp", titulo: c.titulo, sub: [c.hora, c.obs].filter(Boolean).join(" · "), uid: "comp-" + c.id }); });
+  // casa: so o que e semanal ou mais espacado, para a lista e o calendario nao encherem
+  (S.casa || []).forEach(x => { const pr = proximaCasa(x);
+    if (pr && x.cadaDias >= 7 && pr >= de && pr <= ate) out.push({ data: pr, tipo: "casa", titulo: x.nome, sub: ultimaVez(x) ? "última vez em " + ddmm(ultimaVez(x)) : "", uid: "casa-" + x.id }); });
+  (S.treinos || []).forEach(t => { if (t.data >= de && t.data <= ate) out.push({ data: t.data, tipo: "ativ", titulo: t.tipo, sub: t.minutos ? t.minutos + " min" : "", uid: "ativ-" + t.id }); });
+  return out.sort((a, b) => (a.data + (a.hora || "")).localeCompare(b.data + (b.hora || "")));
+}
+function atrasados() {
+  const h = hojeS(), out = [];
+  previstosDoMes(h.slice(0, 7)).forEach(p => { if (p.data < h && p.valor < 0) out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: "venceu em " + ddmm(p.data) + " e ainda não apareceu no extrato" }); });
+  (S.casa || []).forEach(x => { const pr = proximaCasa(x); if (pr && x.cadaDias >= 7 && pr < h) out.push({ data: pr, tipo: "casa", titulo: x.nome, sub: "última vez em " + ddmm(ultimaVez(x)) }); });
+  return out;
+}
+function linhaEv(e) {
+  const d = dt(e.data);
+  return `<div class="lin" data-ev="${e.tipo}"><span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span>
+    <span class="t"><i class="tag ${e.tipo}"></i>${esc(e.titulo)}${e.sub ? `<small>${esc(e.sub)}</small>` : ""}</span>${e.valor ? `<span class="val ${e.valor > 0 ? "ok" : ""}">${brl(Math.abs(e.valor))}</span>` : ""}</div>`;
+}
+/* melhor dia do mercado: quando o vale cai; e o que o cartao Mercado Pago empurra para frente */
+function melhorMercado() {
+  const h = hojeS();
+  const va = S.fixos.find(f => f.valor > 0 && /vale|alimenta/i.test(f.nome)) || S.fixos.find(f => f.valor > 0 && f.dia === "ultimo_util");
+  if (!va) return null;
+  for (let i = 0; i < 3; i++) {
+    const m = addMes(h.slice(0, 7), i), [a, b] = m.split("-").map(Number);
+    const dia = va.dia === "ultimo_util" ? ultimoDiaUtil(a, b).getDate() : Math.min(Number(va.dia) || 1, new Date(a, b, 0).getDate());
+    const d = m + "-" + String(dia).padStart(2, "0");
+    if (d >= h) {
+      const c = CICLO["Mercado Pago"], mp = h.slice(0, 7) + "-" + String(c.fecha + 1).padStart(2, "0");
+      const vence = addMes(h.slice(0, 7), 2) + "-" + String(c.vence).padStart(2, "0");
+      return { data: d, motivo: va.nome, mp, vence };
+    }
+  }
+  return null;
+}
+function htmlMercado() {
+  const m = melhorMercado(); if (!m) return "";
+  const d = dt(m.data);
+  return `<div class="box" style="border-color:var(--ok)"><h3>Melhor dia para o mercado</h3>
+    <div style="font-size:17px;font-weight:700">${SEMLONGO[d.getDay()]}, ${ddmm(m.data)}</div>
+    <div class="dim" style="font-size:12.5px;margin-top:3px">É quando cai: ${esc(m.motivo)}. No cartão Mercado Pago, o que comprar de ${ddmm(m.mp)} em diante só vence em ${ddmm(m.vence)}.</div></div>`;
+}
+
+/* ---------- Inicio ---------- */
+function paginaInicio() {
+  const h = hojeS(), fim = addDias(h, 7);
+  const ev = eventos(h, fim).filter(e => e.tipo !== "ativ"), atr = atrasados();
+  const casaAtras = (S.casa || []).filter(x => ultimaVez(x) && estadoCasa(x).pct >= 1).length;
+  const casaNunca = (S.casa || []).length && (S.casa || []).every(x => !ultimaVez(x));
+  const [mi, ma] = metaTreino(), n = diasTreino(segunda(h));
+  const comps = S.compromissos || [], aMarcar = comps.filter(c => !c.data).length, nSem = comps.filter(c => c.data && c.data >= h && c.data <= fim).length;
+  const sal = S.saldo;
+  return `<div class="blocos">
+      <div class="bloco c-fin" data-area="fin">${svgA("fin")}<b>Finanças</b><small>${sal ? "Na conta: " + brl(sal.valor) : "Importe o extrato"}</small></div>
+      <div class="bloco c-casa" data-area="casa">${svgA("casa")}<b>Casa</b><small>${casaNunca ? "Marque o que já fez" : casaAtras ? plural(casaAtras, "tarefa") + " passando do tempo" : "Tudo em dia"}</small></div>
+      <div class="bloco c-comp" data-area="comp">${svgA("comp")}<b>Compromissos</b><small>${nSem ? nSem + " nesta semana" : "Nada nesta semana"}${aMarcar ? " · " + aMarcar + " a marcar" : ""}</small></div>
+      <div class="bloco c-ativ" data-area="ativ">${svgA("ativ")}<b>Atividade física</b><small>${n} de ${mi} a ${ma} na semana</small></div>
+      <div class="bloco larga c-cal" data-area="cal">${svgA("cal")}<div><b>Calendário geral</b><br><small>Contas, casa, compromissos e treinos</small></div></div>
+    </div>
+    ${atr.length ? `<div class="box" style="border-color:var(--warn)"><h3>Passou da data</h3>${atr.map(linhaEv).join("")}</div>` : ""}
+    <div class="box"><h3>Próximos 7 dias</h3>${ev.length ? ev.map(linhaEv).join("") : '<div class="vazio">Nada nos próximos 7 dias.</div>'}</div>`;
+}
+
+/* ---------- Calendario geral ---------- */
+let CALMES = ym(new Date()), CALDIA = ymd(new Date());
+function paginaCal() {
+  const [a, b] = CALMES.split("-").map(Number), ult = new Date(a, b, 0).getDate();
+  const ev = eventos(CALMES + "-01", CALMES + "-" + String(ult).padStart(2, "0")), porDia = {};
+  ev.forEach(e => (porDia[e.data] = porDia[e.data] || []).push(e));
+  const pad = new Date(a, b - 1, 1).getDay(), h = hojeS();
+  let cel = ["D", "S", "T", "Q", "Q", "S", "S"].map(x => `<div class="s">${x}</div>`).join("") + "<div></div>".repeat(pad);
+  for (let i = 1; i <= ult; i++) {
+    const d = CALMES + "-" + String(i).padStart(2, "0"), tipos = [...new Set((porDia[d] || []).map(e => e.tipo))];
+    cel += `<div class="n ${d === h ? "hj" : ""} ${d === CALDIA ? "sel" : ""}" data-dia="${d}">${i}<div class="pts">${tipos.map(t => `<i class="${t}"></i>`).join("")}</div></div>`;
+  }
+  const doDia = porDia[CALDIA] || [], dsel = dt(CALDIA);
+  return `${htmlMercado()}
+    <div class="box"><h3><button class="ic" id="calAnt" aria-label="mês anterior">‹</button><span style="flex:1;text-align:center">${MESES[b - 1]} ${a}</span><button class="ic" id="calProx" aria-label="próximo mês">›</button></h3>
+      <div class="cal">${cel}</div>
+      <div class="legenda"><span><i class="tag fin"></i>Contas</span><span><i class="tag casa"></i>Casa</span><span><i class="tag comp"></i>Compromissos</span><span><i class="tag ativ"></i>Treinos</span></div></div>
+    <div class="box"><h3>${SEMLONGO[dsel.getDay()]}, ${ddmm(CALDIA)}</h3>${doDia.length ? doDia.map(linhaEv).join("") : '<div class="vazio">Nada neste dia.</div>'}</div>`;
+}
+
+/* ---------- calendario do iPhone: lista pronta que o cofre transforma em .ics ---------- */
+function agendaParaCalendario() {
+  const h = hojeS();
+  return eventos(addDias(h, -7), addDias(h, 120)).filter(e => e.tipo !== "ativ")
+    .map(e => ({ id: e.uid, d: e.data, h: e.hora || null, k: e.tipo, t: e.titulo + (e.valor ? " · " + brl(Math.abs(e.valor)) : "") }));
+}
+function abrirCalIphone() {
+  const d = drive();
+  if (!d) { aviso("Ligue primeiro o Google Drive (aqui em Ajustes).", 6); return; }
+  if (!d.ics) { aviso("O cofre do Drive ainda é a versão antiga. Falta atualizar o script.", 7); return; }
+  const url = d.url + "?cal=" + d.ics, webcal = url.replace(/^https:/, "webcal:");
+  janela("Calendário do iPhone", `
+    <div class="dim" style="margin-bottom:12px">As contas, os compromissos e as tarefas da casa que demoram mais aparecem no calendário do iPhone, num calendário chamado Personal Planner. Ele se atualiza sozinho.</div>
+    <div class="acoes" style="justify-content:flex-start"><a class="bt pri" href="${esc(webcal)}" style="text-decoration:none">Assinar no iPhone</a><button class="bt" id="iCopiar">Copiar o link</button></div>
+    <div class="faint" style="font-size:12px;margin-top:12px">Se o botão não abrir: Ajustes, Calendário, Contas, Adicionar Conta, Outra, Adicionar Calendário Assinado, e cole o link. Esse link é só seu: não mande para ninguém.</div>`,
+  f => f.querySelector("#iCopiar").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(url); aviso("Link copiado."); } catch (e) { prompt("Copie o link:", url); }
+  }));
+}
+function abrirPerfil() {
+  const c = cfg(), [mi, ma] = metaTreino();
+  janela("Nome e metas", `
+    <div class="lado"><div class="campo"><label>Seu nome</label><input id="gNome" value="${esc(c.nome || "")}"></div>
+      <div class="campo"><label>Quem divide a casa com você</label><input id="gParc" value="${esc(c.parceiro || "")}"></div></div>
+    <div class="lado"><div class="campo"><label>Treinos por semana: mínimo</label><input id="gMin" inputmode="numeric" value="${mi}"></div>
+      <div class="campo"><label>máximo</label><input id="gMax" inputmode="numeric" value="${ma}"></div></div>
+    <div class="acoes"><button class="bt pri" id="gOk">Salvar</button></div>`,
+  (f, fechar) => f.querySelector("#gOk").addEventListener("click", () => {
+    S.config = Object.assign(cfg(), { nome: f.querySelector("#gNome").value.trim(), parceiro: f.querySelector("#gParc").value.trim(),
+      treinoMin: parseInt(f.querySelector("#gMin").value, 10) || 4, treinoMax: parseInt(f.querySelector("#gMax").value, 10) || 6 });
+    salvar(); fechar(); render(); aviso("Salvo.");
+  }));
+}
+
+function paginaArea() {
+  if (AREA === "casa") return paginaCasa();
+  if (AREA === "comp") return paginaComp();
+  if (AREA === "ativ") return paginaAtiv();
+  if (AREA === "cal") return paginaCal();
+  if (AREA === "ajustes") return paginaAjustes();
+  return paginaInicio();
+}
+function irPara(area) { AREA = area; if (area === "fin") PAG = "mes"; render(); window.scrollTo(0, 0); }
+function ligarArea() {
+  if (AREA === "ajustes") { ligarAjustes(); return; }
+  document.querySelectorAll("[data-area]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.area)));
+  document.querySelectorAll(".lin[data-ev]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.ev)));
+  document.querySelectorAll("[data-fiz]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.fiz);
+    registrarCasa(x, hojeS(), "eu"); render(); aviso("Registrado: " + x.nome + ".");
+  }));
+  document.querySelectorAll(".lin[data-casa]").forEach(el => el.addEventListener("click", () => abrirCasa(S.casa.find(y => y.id === el.dataset.casa))));
+  document.querySelectorAll("[data-treinei]").forEach(c => c.addEventListener("click", () => {
+    const h = hojeS(), tipo = c.dataset.treinei;
+    if ((S.treinos || []).some(t => t.data === h && t.tipo === tipo)) { aviso(tipo + " já está registrado hoje."); return; }
+    (S.treinos = S.treinos || []).push({ id: uid(), data: h, tipo, em: new Date().toISOString() }); salvar(); render(); aviso("Treino registrado: " + tipo + ".");
+  }));
+  document.querySelectorAll(".lin[data-treino]").forEach(el => el.addEventListener("click", () => abrirTreino(S.treinos.find(t => t.id === el.dataset.treino))));
+  document.querySelectorAll(".lin[data-comp]").forEach(el => el.addEventListener("click", () => abrirComp(S.compromissos.find(c => c.id === el.dataset.comp))));
+  document.querySelectorAll("[data-dia]").forEach(el => el.addEventListener("click", () => { CALDIA = el.dataset.dia; render(); }));
+  const ca = $("#calAnt"), cp = $("#calProx");
+  if (ca) ca.addEventListener("click", () => { CALMES = addMes(CALMES, -1); CALDIA = CALMES + "-01"; render(); });
+  if (cp) cp.addEventListener("click", () => { CALMES = addMes(CALMES, 1); CALDIA = CALMES + "-01"; render(); });
+}
+
 /* ---------------- versao nova (08/11) ----------------
  * O iPhone guarda a copia do app. Ao abrir (e ao voltar para o app) ele
  * confere o versao.txt do site; se mudou, recarrega sozinho. Uma tentativa
@@ -1068,7 +1467,11 @@ $("#mesProx").addEventListener("click", () => { MES = addMes(MES, 1); render(); 
 $("#btLancar").addEventListener("click", () => abrirLancar());
 $("#btBusca").addEventListener("click", () => { PAG = "busca"; render(); window.scrollTo(0, 0); });
 $("#btImportar").addEventListener("click", () => $("#arquivo").click());
-document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { PAG = b.dataset.pag; render(); window.scrollTo(0, 0); }));
+document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { if (b.dataset.pag === "inicio") { irPara("inicio"); return; } PAG = b.dataset.pag; render(); window.scrollTo(0, 0); }));
+$("#btInicio").addEventListener("click", () => irPara("inicio"));
+$("#btAjustes").addEventListener("click", () => irPara("ajustes"));
+$("#btNovo").addEventListener("click", () => { if (AREA === "casa") abrirCasa(null); else if (AREA === "comp") abrirComp(null); else if (AREA === "ativ") abrirTreino(null); });
+semearCasa();
 usarTema(temaAtual());
 puxarDrive(false);
 conferirVersao();

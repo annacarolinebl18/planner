@@ -1,6 +1,6 @@
 {
-  "name": "Finanças",
-  "short_name": "Finanças",
+  "name": "Personal Planner",
+  "short_name": "Planner",
   "lang": "pt-BR",
   "start_url": "./",
   "scope": "./",
