@@ -145,7 +145,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08k";
+const VER = "2026-11-08m";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -262,7 +262,7 @@ const ddmm = s => s ? s.slice(8, 10) + "/" + s.slice(5, 7) : "";
 const MESES = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const MES3 = { JAN:1, FEV:2, MAR:3, ABR:4, MAI:5, JUN:6, JUL:7, AGO:8, SET:9, OUT:10, NOV:11, DEZ:12 };
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-const cat = id => S.categorias.find(c => c.id === id) || { id, nome: id, grupo: 20 };
+const cat = id => CATEGORIAS_PADRAO.find(c => c.id === id) || { id, nome: id, grupo: 30 };
 function aviso(t, s = 4) { const a = document.createElement("div"); a.className = "toast"; a.textContent = t; document.body.appendChild(a); setTimeout(() => a.remove(), s * 1000); }
 function ultimoDiaUtil(ano, mes) { let d = new Date(ano, mes, 0); while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1); return d; }
 function addMes(m, n) { const [a, b] = m.split("-").map(Number); const d = new Date(a, b - 1 + n, 1); return ym(d); }
@@ -354,6 +354,7 @@ function render() {
   document.querySelectorAll(".lin[data-id]").forEach(el => el.addEventListener("click", () => abrirLancamento(el.dataset.id)));
   document.querySelectorAll(".lin[data-fat]").forEach(el => el.addEventListener("click", () => abrirFatura(S.faturas.find(f => f.id === el.dataset.fat))));
   if (PAG === "mais") ligarMais();
+  const mr = $("#miniRegra"); if (mr) mr.addEventListener("click", () => { PAG = "regra"; render(); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-cx]").forEach(el => el.addEventListener("click", () => abrirCaixinha(S.caixinhas.find(c => c.id === el.dataset.cx))));
   const nova = $("#cxNova"); if (nova) nova.addEventListener("click", () => abrirCaixinha(null));
 }
@@ -377,7 +378,20 @@ function paginaMes(r) {
       <div class="card"><div class="r">Ainda vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card"><div class="r">Ainda vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
     </div>
+    ${htmlMiniRegra()}
     <div class="box"><h3>O mês, dia a dia</h3>${tudo.length ? tudo.join("") : '<div class="vazio">Nada neste mês ainda.</div>'}</div>`;
+}
+function htmlMiniRegra() {
+  const renda = rendaDoMes(MES).total;
+  if (!renda) return "";
+  const real = realPorGrupo(MES);
+  return `<div class="box" id="miniRegra" style="cursor:pointer"><h3>Rumo ao ideal <span class="faint" style="font-weight:400;font-size:12px;margin-left:auto">ver 50/30/20</span></h3>${GRUPOS.map((x, i) => {
+    const lim = renda * x.g / 100, v = real[i], pct = Math.min(100, Math.round(v / lim * 100));
+    const ruim = x.g === 20 ? v < lim : v > lim;
+    const txt = x.g === 20 ? (v >= lim ? "nos 20%" : "faltam " + brl(lim - v)) : (v > lim ? "passou " + brl(v - lim) : "cabem " + brl(lim - v));
+    return `<div style="margin:6px 0 9px"><div style="display:flex;justify-content:space-between;font-size:12.5px"><span>${x.nome}</span><span class="${ruim ? (x.g === 20 ? "warn" : "bad") : "ok"}">${txt}</span></div>
+      <div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${pct}%;background:${ruim && x.g !== 20 ? "var(--bad)" : "var(--g" + x.g + ")"}"></div></div></div>`;
+  }).join("")}</div>`;
 }
 function paginaParcelas() {
   const fats = S.faturas.slice().sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
@@ -440,6 +454,45 @@ function rendaDoMes(m) {
   const salPrev = sal ? 0 : previstosDoMes(ant).filter(x => x.categoria === "renda" && x.valor > 0 && /sal/i.test(x.nome)).reduce((s, x) => s + x.valor, 0);
   return { total: sal + salPrev + outras, salario: sal || salPrev, outras };
 }
+/* Quanto cada parte gastou no mes (o mesmo calculo do grafico "Real"). */
+function realPorGrupo(m) {
+  const gastos = gastosDoMesPorDestino(m);
+  const igorCasa = S.lancamentos.filter(l => l.categoria === "casa_igor" && l.valor > 0 && (l.data || "").slice(0, 7) === m).reduce((s, l) => s + l.valor, 0);
+  const real = GRUPOS.map(x => gastos.filter(l => cat(l.categoria).grupo === x.g).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0));
+  real[0] = Math.max(0, real[0] - igorCasa);
+  return real;
+}
+/* Parcelas que acabam: quanto cada mes seguinte fica mais leve. */
+function parcelasQueAcabam() {
+  const ult = {};
+  S.faturas.forEach(f => { if (!ult[f.cartao] || f.vence > ult[f.cartao].vence) ult[f.cartao] = f; });
+  const livre = {};
+  Object.values(ult).forEach(f => S.lancamentos.filter(l => l.fatura === f.id && l.parcela).forEach(l => {
+    const [i, n] = l.parcela.split("/").map(Number);
+    const mesLivre = addMes(f.vence.slice(0, 7), n - i + 1);       // a primeira fatura sem ela
+    (livre[mesLivre] = livre[mesLivre] || []).push({ nome: l.nome, valor: Math.abs(l.valor * (l.dividido || 1)), grupo: cat(l.categoria).grupo });
+  }));
+  return Object.keys(livre).sort().map(m => ({ mes: m, itens: livre[m], total: livre[m].reduce((s, x) => s + x.valor, 0) }));
+}
+function htmlCaminhoIdeal(renda, real) {
+  if (!renda) return "";
+  const ideal = GRUPOS.map(x => renda * x.g / 100);
+  const caixas = (S.caixinhas || []).filter(c => !c.pausada && (c.grupo || 20) === 20).reduce((s, c) => s + (c.porMes || 0), 0);
+  const linhas = [];
+  const dif = GRUPOS.map((x, i) => real[i] - ideal[i]);
+  if (dif[1] > 1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Estilo de vida passou ${brl(dif[1])}</b><small>é o que precisa sair desta parte para chegar nos 30%</small></span></div>`);
+  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Estilo de vida dentro dos 30%</b><small>ainda cabem ${brl(-dif[1])} este mês</small></span></div>`);
+  if (dif[0] > 1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Essenciais passaram ${brl(dif[0])}</b><small>vale olhar as contas da casa e a saúde</small></span></div>`);
+  if (dif[2] < -1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Futuro: faltam ${brl(-dif[2])} para os 20%</b><small>as caixinhas de guardar somam ${brl(caixas)} por mês${caixas + 0.009 < ideal[2] ? "; para chegar nos 20% precisam de " + brl(ideal[2]) : ""}</small></span></div>`);
+  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Futuro nos 20%</b></span></div>`);
+  const acabam = parcelasQueAcabam().slice(0, 3);
+  const livres = acabam.length ? `<div style="margin-top:10px"><b style="font-size:12.5px">Parcelas que acabam e liberam dinheiro</b>
+    ${acabam.map(a => `<div class="lin" style="cursor:default"><span class="d">${MESES[Number(a.mes.slice(5)) - 1].slice(0, 3)}</span>
+      <span class="t">${a.itens.map(x => esc(x.nome)).join(", ")}<small>a partir da fatura de ${MESES[Number(a.mes.slice(5)) - 1]}</small></span><span class="val ok">+ ${brl(a.total)}</span></div>`).join("")}
+    <div class="faint" style="font-size:11.5px;margin-top:4px">Quando uma parcela acaba, mande esse valor para uma caixinha: assim o Futuro sobe sem apertar o mês.</div></div>` : "";
+  return `<div class="box"><h3>Como chegar no ideal</h3>${linhas.join("")}${livres}</div>`;
+}
+
 function paginaRegra(r) {
   const rd = rendaDoMes(MES), renda = rd.total;
   const ideal = GRUPOS.map(x => renda * x.g / 100);
@@ -449,8 +502,7 @@ function paginaRegra(r) {
   planejado[0] = Math.max(0, planejado[0] - S.fixos.filter(f => f.categoria === "casa_igor").reduce((s, f) => s + f.valor, 0));
   (S.caixinhas || []).filter(c => !c.pausada).forEach(c => { const i = GRUPOS.findIndex(x => x.g === (c.grupo || 20)); planejado[i] += c.porMes || 0; });
   const gastos = gastosDoMesPorDestino(MES);
-  const real = GRUPOS.map(x => gastos.filter(l => cat(l.categoria).grupo === x.g).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0));
-  real[0] = Math.max(0, real[0] - igorCasa);
+  const real = realPorGrupo(MES);
   const barras = GRUPOS.map((x, i) => {
     const pct = ideal[i] ? Math.min(100, Math.round(real[i] / ideal[i] * 100)) : 0, passou = real[i] > ideal[i];
     return `<div style="margin:8px 0 12px"><div style="display:flex;justify-content:space-between;font-size:12.5px">
@@ -471,6 +523,7 @@ function paginaRegra(r) {
       <div class="leg">${GRUPOS.map(x => `<span><i style="background:var(--g${x.g})"></i>${x.nome} ${x.g}%</span>`).join("")}</div></div>
     <div class="box"><h3>Quanto já foi de cada parte</h3>${renda ? barras : '<div class="vazio">Sem renda no mês ainda.</div>'}
       <div class="faint" style="font-size:11.5px">Renda de ${MESES[Number(MES.slice(5)) - 1]}: ${brl(renda)} (salário do fim do mês anterior ${brl(rd.salario)} + o que entrou no mês ${brl(rd.outras)}). O cartão entra pelo que você comprou, não pela fatura inteira.</div></div>
+    ${htmlCaminhoIdeal(renda, real)}
     <div class="box"><h3>O que pesa em cada parte</h3>${detalhe || '<div class="vazio">Sem gastos no mês ainda.</div>'}</div>`;
 }
 /* ================================================================
@@ -596,7 +649,7 @@ function janela(tit, corpo, aoMontar) {
   aoMontar && aoMontar(f, fechar);
   return f;
 }
-const opcoesCategoria = sel => S.categorias.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(c.nome)}</option>`).join("");
+const opcoesCategoria = sel => CATEGORIAS_PADRAO.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(c.nome)}</option>`).join("");
 
 /* lancar a mao (Uber, pe em gel, algo pago em dinheiro...) */
 function abrirLancar(base) {
