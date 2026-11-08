@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09k";
+const VER = "2026-11-09l";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -314,6 +314,7 @@ function juntarDados(meu, deles) {
     return Object.assign({}, x, { histApagado: tira, historico: Object.keys(h).filter(k => !tira[k]).map(k => h[k]).sort((a, b) => a.data.localeCompare(b.data)) });
   });
   r.config = Object.assign({}, deles.config || {}, meu.config || {});
+  r.saldosDia = Object.assign({}, deles.saldosDia || {}, meu.saldosDia || {});
   if (deles.saldo && (!meu.saldo || deles.saldo.em > meu.saldo.em)) r.saldo = deles.saldo;
   r.notasMes = Object.assign({}, deles.notasMes || {}, meu.notasMes || {});
   r.apagados = ap;
@@ -438,8 +439,14 @@ const inicioDoMes = M => salarioNoFim() ? diaDoSalario(addMes(M, -1)) : diaDoSal
 const fimDoMes = M => addDias(inicioDoMes(addMes(M, 1)), -1);
 /* saldo da conta num dia: o saldo do extrato menos o que aconteceu depois (bate com o "SALDO DO DIA" do Itau) */
 function saldoNoDia(d) {
+  const conta = l => !l.fatura && l.origem === "itau";
+  const cps = Object.keys(S.saldosDia || {}).filter(x => x <= d).sort();
+  if (cps.length) {
+    const c = cps[cps.length - 1];
+    return Math.round((S.saldosDia[c] + S.lancamentos.filter(l => conta(l) && l.data > c && l.data <= d).reduce((s, l) => s + l.valor, 0)) * 100) / 100;
+  }
   if (!S.saldo) return null;
-  return Math.round((S.saldo.valor - S.lancamentos.filter(l => !l.fatura && l.origem === "itau" && l.data > d && l.data <= S.saldo.em)
+  return Math.round((S.saldo.valor - S.lancamentos.filter(l => conta(l) && l.data > d && l.data <= S.saldo.em)
     .reduce((s, l) => s + l.valor, 0)) * 100) / 100;
 }
 function mesDoLanc(l) {
@@ -1282,8 +1289,10 @@ async function linhasDoPdf(arq) {
   return out;
 }
 function lerItau(L) {
-  const lanc = []; let saldo = null;
+  const lanc = []; let saldo = null; const saldosDia = {};
   L.forEach((l, i) => {
+    const sd = l.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+SALDO DO DIA\s+(-?[\d.]+,\d{2})/i);
+    if (sd) saldosDia[`${sd[3]}-${sd[2]}-${sd[1]}`] = num(sd[4]);
     if (saldo == null && /saldo em conta/i.test(l)) { const m = (L[i + 1] || "").match(/R\$\s*(-?[\d.]+,\d{2})/); if (m) saldo = num(m[1]); }
     const m = l.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(.+?)\s+(-?[\d.]+,\d{2})$/);
     if (!m || /SALDO DO DIA|SALDO ANTERIOR/i.test(m[4])) return;
@@ -1294,7 +1303,7 @@ function lerItau(L) {
   // 09/11: o banco lancou com data 09/11 um Pix feito em 07/11, ja descontado do saldo de 07/11
   const em = emitido[3] ? `${emitido[3]}-${emitido[2]}-${emitido[1]}` : null;
   lanc.forEach(l => { if (em && l.data > em && l.diaPix && l.diaPix <= em) l.data = l.diaPix; delete l.diaPix; });
-  return { tipo: "Itaú", lanc, saldo: saldo != null ? { valor: saldo, conta: "Itaú", em: emitido[3] ? `${emitido[3]}-${emitido[2]}-${emitido[1]}` : ymd(new Date()) } : null };
+  return { tipo: "Itaú", lanc, saldosDia, saldo: saldo != null ? { valor: saldo, conta: "Itaú", em: emitido[3] ? `${emitido[3]}-${emitido[2]}-${emitido[1]}` : ymd(new Date()) } : null };
 }
 function lerMercadoPago(L) {
   const txt = L.join("\n");
@@ -1356,6 +1365,7 @@ function juntar(res) {
     S.lancamentos.push(classificar(Object.assign({ id: uid(), chave, fatura: fatId }, l))); novos++;
   });
   if (res.saldo && (!S.saldo || res.saldo.em >= S.saldo.em)) S.saldo = res.saldo;
+  if (res.saldosDia) S.saldosDia = Object.assign(S.saldosDia || {}, res.saldosDia);
   trocarProvisorios();
   marcarFaturasPagas();
   salvar();
