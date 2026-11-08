@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09l";
+const VER = "2026-11-09m";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -315,6 +315,7 @@ function juntarDados(meu, deles) {
   });
   r.config = Object.assign({}, deles.config || {}, meu.config || {});
   r.saldosDia = Object.assign({}, deles.saldosDia || {}, meu.saldosDia || {});
+  r.diaADia = Object.assign({}, deles.diaADia || {}, meu.diaADia || {});
   if (deles.saldo && (!meu.saldo || deles.saldo.em > meu.saldo.em)) r.saldo = deles.saldo;
   r.notasMes = Object.assign({}, deles.notasMes || {}, meu.notasMes || {});
   r.apagados = ap;
@@ -530,6 +531,7 @@ function render() {
   else if (PAG === "busca") { $("#tela").innerHTML = paginaBusca(); ligarBusca(); }
   else $("#tela").innerHTML = paginaMais();
   document.querySelectorAll(".lin[data-id]").forEach(el => el.addEventListener("click", () => abrirLancamento(el.dataset.id)));
+  document.querySelectorAll("[data-diaadia]").forEach(el => el.addEventListener("click", () => abrirDiaADia(MES)));
   const cxMov = (c, v, nota) => { c.saldo = Math.round(((c.saldo || 0) + v) * 100) / 100; (c.historico = c.historico || []).push({ data: hojeS(), valor: v, nota }); c.em = new Date().toISOString(); };
   document.querySelectorAll("[data-cxadd]").forEach(b => b.addEventListener("click", ev => {
     ev.stopPropagation(); const c = S.caixinhas.find(x => x.id === b.dataset.cxadd), v = Number(b.dataset.v);
@@ -648,31 +650,31 @@ function cartoesEstimados(r) {
   });
   return Math.round(tot * 100) / 100;
 }
+const diaADiaDoMes = m => { const v = (S.diaADia || {})[m]; return v != null ? v : (cfg().diaADia != null ? cfg().diaADia : null); };
 function planoCaixinhas(m, r) {
   if (r.fase === "passado") return null;
-  const dd = mediaDiaADia(), cart = r.fase === "futuro" ? cartoesEstimados(r) : 0;
+  const definido = diaADiaDoMes(m), dd = definido || 0, cart = r.fase === "futuro" ? cartoesEstimados(r) : 0;
   const treze = r.prev.filter(eh13).reduce((s, p) => s + p.valor, 0);
   let base = r.vaiEntrar - treze - r.vaiSair - cart;
   const partes = [];
-  let ddUsado = dd;
+  const ddUsado = dd;
   if (r.fase === "atual") {
-    const tot = Math.max(1, difDias(r.ini, r.fim) + 1), resta = Math.max(0, difDias(hojeS(), r.fim) + 1);
-    ddUsado = Math.round(dd * resta / tot * 100) / 100;
     partes.push(["Na conta hoje", S.saldo ? S.saldo.valor : 0]);
-    base += (S.saldo ? S.saldo.valor : 0) - ddUsado;
-  } else base -= dd;
+    base += (S.saldo ? S.saldo.valor : 0);
+  }
+  base -= dd;
   partes.push([r.fase === "atual" ? "Ainda vai entrar" : "Vai entrar", r.vaiEntrar - treze]);
   partes.push([r.fase === "atual" ? "Ainda vai sair (contas)" : "Contas", -r.vaiSair]);
   if (cart) partes.push(["Cartões (média)", -cart]);
-  partes.push([r.fase === "atual" ? "Dia a dia até " + ddmm(r.fim) + " (média)" : "Dia a dia (média)", -ddUsado]);
-  let livre = Math.max(0, Math.round(base * 100) / 100);
+  partes.push([(r.fase === "atual" ? "Dia a dia até " + ddmm(r.fim) : "Dia a dia") + (definido == null ? " (toque para colocar)" : ""), -ddUsado, "dd"]);
+  let livre = definido == null ? 0 : Math.max(0, Math.round(base * 100) / 100);
   const itens = ordemCx().filter(c => !c.pausada && !(c.desde && m < c.desde)).map(c => {
     const feito = (c.feitos || {})[m];
     const v = feito != null ? feito : Math.min(c.porMes || 0, livre);
     if (feito == null) livre = Math.round((livre - v) * 100) / 100;
     return { c, v, feito: feito != null };
   });
-  return { base: Math.round(base * 100) / 100, dd, cart, treze, itens, partes };
+  return { base: Math.round(base * 100) / 100, dd, cart, treze, itens, partes, semDD: definido == null };
 }
 function htmlPlano(m, r, pl, completo) {
   if (!pl) return "";
@@ -691,12 +693,28 @@ function htmlPlano(m, r, pl, completo) {
   return `<div class="box"><h3>${completo ? "Plano de " + MESES[Number(m.slice(5)) - 1] : "Para onde vai"}</h3>${lin13}${lin}</div>`;
 }
 /* card do topo: quanto da para guardar; quando nao da, a conta do porque */
+function abrirDiaADia(m) {
+  const nomeMes = MESES[Number(m.slice(5)) - 1], atual = (S.diaADia || {})[m], todos = cfg().diaADia;
+  janela("Dia a dia de " + nomeMes, `
+    <div class="campo"><label>Quanto ainda vai gastar em ${nomeMes} (passagem, mercado, farmácia...)</label>
+      <input id="dValor" inputmode="decimal" value="${atual != null ? atual.toFixed(2).replace(".", ",") : todos != null ? todos.toFixed(2).replace(".", ",") : ""}"></div>
+    <label style="display:block;margin-bottom:10px"><input type="checkbox" id="dTodos"> Usar este valor para todos os meses</label>
+    <div class="faint" style="font-size:12px;margin-bottom:10px">Sua média de agosto a outubro: ${brl(mediaDiaADia())} por mês.</div>
+    <div class="acoes"><button class="bt pri" id="dOk">Salvar</button></div>`,
+  (f, fechar) => f.querySelector("#dOk").addEventListener("click", () => {
+    const v = num(f.querySelector("#dValor").value) || 0;
+    if (f.querySelector("#dTodos").checked) { S.config = Object.assign(cfg(), { diaADia: v }); }
+    S.diaADia = Object.assign(S.diaADia || {}, { [m]: v });
+    salvar(); fechar(); render(); aviso("Dia a dia de " + nomeMes + ": " + brl(v) + ".");
+  }));
+}
 function cardGuardar(pl) {
   if (!pl) return "";
-  const conta = `<div class="conta-g">${pl.partes.map(([t, v]) => `<div><span>${esc(t)}</span><span>${v < 0 ? "- " + brl(-v) : brl(v)}</span></div>`).join("")}
+  const conta = `<div class="conta-g">${pl.partes.map(([t, v, k]) => `<div ${k ? 'data-diaadia="1" style="cursor:pointer;color:var(--brand)"' : ""}><span>${esc(t)}</span><span>${v < 0 ? "- " + brl(-v) : brl(v)}</span></div>`).join("")}
       <div class="tot"><span>${pl.base > 0 ? "Sobra" : "Falta"}</span><span>${brl(Math.abs(pl.base))}</span></div></div>`;
-  if (pl.base > 0) return `<div class="card" style="grid-column:span 2;border-color:var(--ok);background:var(--ok-soft)"><div class="r">Dá para guardar</div>
-      <div class="v ok">${brl(pl.base)}</div>${pl.treze ? '<div class="faint" style="font-size:11.5px">o 13º vai para o Cabelo</div>' : ""}</div>`;
+  if (pl.semDD) return `<div class="card" style="grid-column:span 2;text-align:left"><div class="r" style="text-align:center">Quanto dá para guardar?</div>${conta.replace(/<div class="tot"><span>(Sobra|Falta)<\/span>/, '<div class="tot" style="color:var(--text)"><span>Antes do dia a dia</span>')}</div>`;
+  if (pl.base > 0) return `<div class="card" style="grid-column:span 2;border-color:var(--ok);background:var(--ok-soft);text-align:left"><div class="r" style="text-align:center">Dá para guardar</div>
+      <div class="v ok" style="text-align:center">${brl(pl.base)}</div>${conta.replace('class="tot"', 'class="tot" style="color:var(--ok)"')}${pl.treze ? '<div class="faint" style="font-size:11.5px">o 13º vai para o Cabelo</div>' : ""}</div>`;
   return `<div class="card" style="grid-column:span 2;text-align:left"><div class="r" style="text-align:center">Não sobra para guardar</div>${conta}
       ${pl.treze ? '<div class="faint" style="font-size:11.5px;text-align:center;margin-top:4px">o 13º vai para o Cabelo</div>' : ""}</div>`;
 }
