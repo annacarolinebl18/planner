@@ -146,7 +146,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08t";
+const VER = "2026-11-08u";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -173,7 +173,7 @@ const CATEGORIAS_PADRAO = [
 ];
 function vazio() {
   return { versao: 1, salvoEm: null, saldo: null, categorias: CATEGORIAS_PADRAO.slice(),
-           apelidos: [], fixos: [], lancamentos: [], faturas: [], metas: [], caixinhas: [] };
+           apelidos: [], fixos: [], lancamentos: [], faturas: [], metas: [], caixinhas: [], apagados: {} };
 }
 let S = carregar();
 S.categorias = CATEGORIAS_PADRAO.slice();
@@ -196,16 +196,47 @@ async function pedirCofre(corpo) {
   const r = await fetch(d.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(Object.assign({ senha: d.senha }, corpo)) });
   return r.json();
 }
+/* ---------------- apagados (08/11) ----------------
+ * Item apagado vira uma "lapide" com a hora. Na juntada entre aparelhos e Drive
+ * a lapide vence a copia antiga do item, para nada apagado voltar.
+ *   i|<id>     qualquer item (lancamento, caixinha, fixo, fatura)
+ *   c|<chave>  lancamento importado: nao volta nem reimportando o extrato
+ *   a|<chave>  nome dado (apelido) */
+const chaveApelido = x => [x.padrao, x.sinal || "", x.valor || "", x.origem || ""].join("|").toUpperCase();
+function lapide(k) { if (!S.apagados) S.apagados = {}; S.apagados[k] = new Date().toISOString(); }
+function apagarLanc(l, bloquearReimportar) { lapide("i|" + l.id); if (bloquearReimportar && l.chave) lapide("c|" + l.chave); }
+function vivo(x, ap, extra) {
+  const ks = ["i|" + x.id].concat(extra ? extra(x) : []);
+  return !ks.some(k => ap[k] && !((x.em || "") > ap[k]));
+}
+function limparApagados(d) {
+  const ap = d.apagados || {};
+  if (!Object.keys(ap).length) return d;
+  d.lancamentos = (d.lancamentos || []).filter(x => vivo(x, ap, y => y.chave ? ["c|" + y.chave] : []));
+  ["fixos", "caixinhas", "faturas"].forEach(k => { d[k] = (d[k] || []).filter(x => vivo(x, ap)); });
+  d.apelidos = (d.apelidos || []).filter(x => vivo(x, ap, y => ["a|" + chaveApelido(y)]));
+  return d;
+}
+function juntarApagados(a, b) {
+  const r = Object.assign({}, a || {});
+  Object.entries(b || {}).forEach(([k, v]) => { if (!r[k] || v > r[k]) r[k] = v; });
+  return r;
+}
 /* juntar dois aparelhos: o que cada um tem de novo entra; no mesmo item, o deste aparelho vale */
 function juntarDados(meu, deles) {
+  // primeiro tira dos dois lados o que foi apagado em qualquer um deles
+  const ap = juntarApagados(deles.apagados, meu.apagados);
+  meu = limparApagados(Object.assign({}, meu, { apagados: ap }));
+  deles = limparApagados(Object.assign({}, deles, { apagados: ap }));
   const uniao = (a, b, chave) => { const m = {}; (b || []).forEach(x => { m[chave(x)] = x; }); (a || []).forEach(x => { m[chave(x)] = x; }); return Object.values(m); };
   const r = Object.assign({}, deles, meu);
   r.lancamentos = uniao(meu.lancamentos, deles.lancamentos, x => x.chave || x.id);
-  r.apelidos = uniao(meu.apelidos, deles.apelidos, x => [x.padrao, x.sinal || "", x.valor || "", x.origem || ""].join("|").toUpperCase());
+  r.apelidos = uniao(meu.apelidos, deles.apelidos, chaveApelido);
   ["fixos", "caixinhas", "faturas"].forEach(k => { r[k] = uniao(meu[k], deles[k], x => x.id); });
   if (deles.saldo && (!meu.saldo || deles.saldo.em > meu.saldo.em)) r.saldo = deles.saldo;
   r.notasMes = Object.assign({}, deles.notasMes || {}, meu.notasMes || {});
-  return r;
+  r.apagados = ap;
+  return limparApagados(r);
 }
 let _envio = null, _baseDrive = null;
 function agendarEnvio() { if (!drive()) return; clearTimeout(_envio); _envio = setTimeout(enviarDrive, 2500); }
@@ -664,7 +695,7 @@ function abrirCaixinha(c) {
     if (!nova) {
       f.querySelector("#cGuardei").addEventListener("click", () => mov(1));
       f.querySelector("#cUsei").addEventListener("click", () => mov(-1));
-      f.querySelector("#cApagar").addEventListener("click", () => { if (confirm("Apagar a caixinha " + c.nome + "?")) { S.caixinhas = S.caixinhas.filter(x => x.id !== c.id); salvar(); fechar(); render(); } });
+      f.querySelector("#cApagar").addEventListener("click", () => { if (confirm("Apagar a caixinha " + c.nome + "?")) { lapide("i|" + c.id); S.caixinhas = S.caixinhas.filter(x => x.id !== c.id); salvar(); fechar(); render(); } });
     }
   });
 }
@@ -756,7 +787,7 @@ function abrirLancar(base) {
       salvar(); fechar(); render(); aviso("Salvo.");
     });
     const ap = f.querySelector("#fApagar");
-    if (ap) ap.addEventListener("click", () => { S.lancamentos = S.lancamentos.filter(x => x.id !== base.id); if (base.fatura) recalcularFaturaAberta(base.fatura); salvar(); fechar(); render(); aviso("Apagado."); });
+    if (ap) ap.addEventListener("click", () => { apagarLanc(base, true); S.lancamentos = S.lancamentos.filter(x => x.id !== base.id); if (base.fatura) recalcularFaturaAberta(base.fatura); salvar(); fechar(); render(); aviso("Apagado."); });
   });
 }
 
@@ -801,8 +832,9 @@ function abrirLancamento(id) {
     const dividido = f.querySelector("#fMetade").checked ? 0.5 : null;
     if (f.querySelector("#fSempre").checked) {
       const padrao = chavePadrao(l.descBanco);
+      S.apelidos.filter(a => a.padrao.toUpperCase() === padrao.toUpperCase()).forEach(a => lapide("a|" + chaveApelido(a)));
       S.apelidos = S.apelidos.filter(a => a.padrao.toUpperCase() !== padrao.toUpperCase());
-      S.apelidos.push({ padrao, nome, categoria, dividido });
+      S.apelidos.push({ padrao, nome, categoria, dividido, em: new Date(Date.now() + 1).toISOString() });
       S.lancamentos.forEach(x => { if (x.descBanco && x.origem !== "manual") classificar(x); });
     } else Object.assign(l, { nome, categoria, dividido, aClassificar: false });
     salvar(); fechar(); render(); aviso("Salvo.");
@@ -872,7 +904,7 @@ function abrirFixo(fx, m) {
       salvar(); fechar(); render(); aviso("Salvo.");
     });
     const ap = f.querySelector("#fApagar");
-    if (ap) ap.addEventListener("click", () => { S.fixos = S.fixos.filter(x => x.id !== fx.id); salvar(); fechar(); render(); });
+    if (ap) ap.addEventListener("click", () => { lapide("i|" + fx.id); S.fixos = S.fixos.filter(x => x.id !== fx.id); salvar(); fechar(); render(); });
   });
 }
 
@@ -885,7 +917,7 @@ function abrirApelidos() {
   janela("Nomes que você deu", S.apelidos.length ? `<table class="t"><tr><th>No banco</th><th>Aparece como</th><th></th></tr>${S.apelidos.map((a, i) =>
     `<tr><td>${esc(a.padrao)}</td><td>${esc(a.nome)} <span class="faint">· ${esc(cat(a.categoria).nome)}</span></td><td><button class="bt sm ghost" data-i="${i}">tirar</button></td></tr>`).join("")}</table>`
     : '<div class="vazio">Toque num lançamento para dar um nome a ele.</div>', (f, fechar) => f.querySelectorAll("[data-i]").forEach(b => b.addEventListener("click", () => {
-      S.apelidos.splice(Number(b.dataset.i), 1); S.lancamentos.forEach(x => { if (x.descBanco) classificar(x); }); salvar(); fechar(); abrirApelidos(); render();
+      lapide("a|" + chaveApelido(S.apelidos[Number(b.dataset.i)])); S.apelidos.splice(Number(b.dataset.i), 1); S.lancamentos.forEach(x => { if (x.descBanco) classificar(x); }); salvar(); fechar(); abrirApelidos(); render();
     })));
 }
 
@@ -966,6 +998,7 @@ function juntar(res) {
     if (ja) {
       fatId = ja.id; ja.total = res.fatura.total;
       // a fatura que estava em aberto (copiada dos prints) da lugar ao PDF fechado, sem duplicar
+      S.lancamentos.filter(l => l.fatura === ja.id && l.doPrint).forEach(l => apagarLanc(l, false));
       S.lancamentos = S.lancamentos.filter(l => !(l.fatura === ja.id && l.doPrint));
     }
     else { fatId = uid(); S.faturas.push(Object.assign({ id: fatId, paga: false }, res.fatura)); }
@@ -974,7 +1007,7 @@ function juntar(res) {
   res.lanc.forEach(l => {
     const base = chaveDup(l); vistos[base] = (vistos[base] || 0) + 1;
     const chave = base + "#" + vistos[base];
-    if (S.lancamentos.some(x => x.chave === chave)) { repetidos++; return; }
+    if (S.lancamentos.some(x => x.chave === chave) || (S.apagados || {})["c|" + chave]) { repetidos++; return; }
     S.lancamentos.push(classificar(Object.assign({ id: uid(), chave, fatura: fatId }, l))); novos++;
   });
   if (res.saldo && (!S.saldo || res.saldo.em >= S.saldo.em)) S.saldo = res.saldo;
