@@ -82,6 +82,9 @@ button,input,select{font:inherit;color:inherit}
 .pago-bt{min-width:76px;flex:none;text-align:center;font-size:12.5px;padding:6px 8px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer}
 .cx-bt{min-width:96px;max-width:96px;font-size:11.5px;line-height:1.2;white-space:normal}
 .lin.espera{opacity:.55}
+.conta-g{font-size:12.5px;margin-top:6px}
+.conta-g div{display:flex;justify-content:space-between;padding:2px 0;color:var(--dim)}
+.conta-g .tot{border-top:1px solid var(--border);margin-top:4px;padding-top:5px;font-weight:700;color:var(--bad)}
 .lin .n{width:20px;height:20px;border-radius:50%;background:var(--surface-2);color:var(--dim);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
 .pago-bt.apagar{color:var(--warn);border-color:var(--warn)}
 .pago-bt.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:600}
@@ -213,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09i";
+const VER = "2026-11-09j";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -579,9 +582,6 @@ function paginaMes(r) {
   const nomeMes = MESES[Number(MES.slice(5)) - 1];
   const per = ddmm(r.ini) + " a " + ddmm(r.fim);
   const pl = planoCaixinhas(MES, r);
-  const cardGuardar = pl ? `<div class="card" style="grid-column:span 2;border-color:var(--ok);background:var(--ok-soft)"><div class="r">Dá para guardar</div>
-      <div class="v ${pl.base > 0 ? "ok" : "bad"}">${brl(Math.max(0, pl.base))}</div>
-      <div class="faint" style="font-size:11.5px">já tirando o dia a dia (média ${brl(pl.dd)})${pl.cart ? " e os cartões (média " + brl(pl.cart) + ")" : ""}${pl.treze ? "; o 13º vai para o Cabelo" : ""}</div></div>` : "";
   const cor = v => v < 0 ? "bad" : "";
   let topo;
   if (r.fase === "passado") topo = `
@@ -597,7 +597,7 @@ function paginaMes(r) {
     <div class="cards" style="grid-template-columns:1fr 1fr">
       <div class="card"><div class="r">Vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card"><div class="r">Vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
-      ${cardGuardar}
+      ${cardGuardar(pl)}
     </div>`;
   else topo = `
     <div class="hero"><div class="r">Na conta hoje</div>
@@ -608,7 +608,7 @@ function paginaMes(r) {
       <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
       <div class="card"><div class="r">Ainda vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card"><div class="r">Ainda vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
-      ${cardGuardar}
+      ${cardGuardar(pl)}
     </div>`;
   return `${topo}${htmlPlano(MES, r, pl)}
     ${(S.notasMes || {})[MES] ? `<div class="box" style="border-color:var(--warn)"><b class="warn">Mês incompleto</b><div class="dim" style="font-size:12.5px;margin-top:4px">${esc(S.notasMes[MES])}</div></div>` : ""}
@@ -641,10 +641,18 @@ function planoCaixinhas(m, r) {
   const dd = mediaDiaADia(), cart = r.fase === "futuro" ? cartoesEstimados(r) : 0;
   const treze = r.prev.filter(eh13).reduce((s, p) => s + p.valor, 0);
   let base = r.vaiEntrar - treze - r.vaiSair - cart;
+  const partes = [];
+  let ddUsado = dd;
   if (r.fase === "atual") {
     const tot = Math.max(1, difDias(r.ini, r.fim) + 1), resta = Math.max(0, difDias(hojeS(), r.fim) + 1);
-    base += (S.saldo ? S.saldo.valor : 0) - dd * resta / tot;
+    ddUsado = Math.round(dd * resta / tot * 100) / 100;
+    partes.push(["Na conta hoje", S.saldo ? S.saldo.valor : 0]);
+    base += (S.saldo ? S.saldo.valor : 0) - ddUsado;
   } else base -= dd;
+  partes.push([r.fase === "atual" ? "Ainda vai entrar" : "Vai entrar", r.vaiEntrar - treze]);
+  partes.push([r.fase === "atual" ? "Ainda vai sair (contas)" : "Contas", -r.vaiSair]);
+  if (cart) partes.push(["Cartões (média)", -cart]);
+  partes.push([r.fase === "atual" ? "Dia a dia até " + ddmm(r.fim) + " (média)" : "Dia a dia (média)", -ddUsado]);
   let livre = Math.max(0, Math.round(base * 100) / 100);
   const itens = ordemCx().filter(c => !c.pausada && !(c.desde && m < c.desde)).map(c => {
     const feito = (c.feitos || {})[m];
@@ -652,9 +660,9 @@ function planoCaixinhas(m, r) {
     if (feito == null) livre = Math.round((livre - v) * 100) / 100;
     return { c, v, feito: feito != null };
   });
-  return { base: Math.round(base * 100) / 100, dd, cart, treze, itens };
+  return { base: Math.round(base * 100) / 100, dd, cart, treze, itens, partes };
 }
-function htmlPlano(m, r, pl) {
+function htmlPlano(m, r, pl, completo) {
   if (!pl) return "";
   const cab = (S.caixinhas || []).find(c => /cabelo/i.test(c.nome));
   const lin13 = r.prev.filter(eh13).map(p => {
@@ -662,11 +670,23 @@ function htmlPlano(m, r, pl) {
     return `<div class="lin" style="cursor:default"><span class="t">${esc(cab ? cab.nome.replace(/\s*\(.*\)/, "") : "Cabelo")}<small>13º · ${ddmm(p.data)}</small></span><span class="val">${brl(p.valor)}</span>
       <button class="pago-bt cx-bt ${feito ? "on" : ""}" data-cx13="${esc(k)}" data-v="${p.valor}">${feito ? "Adicionado" : "Adicionar à caixinha"}</button></div>`;
   }).join("");
-  const lin = pl.itens.map(x => `<div class="lin ${x.v || x.feito ? "" : "espera"}" style="cursor:default"><span class="n">${x.c.ordem || "·"}</span>
+  const itens = completo ? pl.itens : pl.itens.filter(x => x.v || x.feito);
+  if (!completo && !itens.length && !lin13) return "";
+  const lin = itens.map(x => `<div class="lin ${x.v || x.feito ? "" : "espera"}" style="cursor:default"><span class="n">${x.c.ordem || "·"}</span>
       <span class="t">${esc(x.c.nome)}<small>${x.feito ? "adicionado em " + MESES[Number(m.slice(5)) - 1] : x.v ? (x.v < (x.c.porMes || 0) ? "de " + brl(x.c.porMes) : "") : "espera sobrar"}${x.c.meta ? (x.v || x.feito ? " · " : " · ") + "meta " + brl(x.c.meta) : ""}</small></span>
       <span class="val">${brl(x.v || x.c.porMes || 0)}</span>
       ${x.feito ? `<button class="pago-bt cx-bt on" data-cxdes="${x.c.id}">Adicionado</button>` : x.v ? `<button class="pago-bt cx-bt" data-cxadd="${x.c.id}" data-v="${x.v}">Adicionar à caixinha</button>` : '<span class="cx-bt"></span>'}</div>`).join("");
-  return `<div class="box"><h3>Guardar este mês</h3>${lin13}${lin}</div>`;
+  return `<div class="box"><h3>${completo ? "Plano de " + MESES[Number(m.slice(5)) - 1] : "Para onde vai"}</h3>${lin13}${lin}</div>`;
+}
+/* card do topo: quanto da para guardar; quando nao da, a conta do porque */
+function cardGuardar(pl) {
+  if (!pl) return "";
+  const conta = `<div class="conta-g">${pl.partes.map(([t, v]) => `<div><span>${esc(t)}</span><span>${v < 0 ? "- " + brl(-v) : brl(v)}</span></div>`).join("")}
+      <div class="tot"><span>${pl.base > 0 ? "Sobra" : "Falta"}</span><span>${brl(Math.abs(pl.base))}</span></div></div>`;
+  if (pl.base > 0) return `<div class="card" style="grid-column:span 2;border-color:var(--ok);background:var(--ok-soft)"><div class="r">Dá para guardar</div>
+      <div class="v ok">${brl(pl.base)}</div>${pl.treze ? '<div class="faint" style="font-size:11.5px">o 13º vai para o Cabelo</div>' : ""}</div>`;
+  return `<div class="card" style="grid-column:span 2;text-align:left"><div class="r" style="text-align:center">Não sobra para guardar</div>${conta}
+      ${pl.treze ? '<div class="faint" style="font-size:11.5px;text-align:center;margin-top:4px">o 13º vai para o Cabelo</div>' : ""}</div>`;
 }
 function htmlMiniRegra() {
   const renda = rendaDoMes(MES).total;
@@ -900,7 +920,9 @@ function paginaCaixinhas() {
   const cx = ordemCx();
   const total = cx.reduce((s, c) => s + (c.saldo || 0), 0), porMes = cx.filter(c => !c.pausada).reduce((s, c) => s + (c.porMes || 0), 0);
   const rd = rendaDoMes(MES), limite = rd.total * 0.2;
-  return `<div class="cards" style="grid-template-columns:repeat(2,1fr)">
+  const rM = resumo(MES), plM = planoCaixinhas(MES, rM);
+  return `${plM ? `<div class="cards" style="grid-template-columns:1fr 1fr">${cardGuardar(plM)}</div>${htmlPlano(MES, rM, plM, true)}` : ""}
+    <div class="cards" style="grid-template-columns:repeat(2,1fr)">
       <div class="card"><div class="r">Guardado nas caixinhas</div><div class="v ok">${brl(total)}</div></div>
       <div class="card"><div class="r">Guardar por mês</div><div class="v ${porMes > limite && limite ? "warn" : ""}">${brl(porMes)}</div><div class="faint" style="font-size:11.5px">20% da renda: ${brl(limite)}</div></div></div>
     <div class="box"><h3>Caixinhas <button class="bt sm" id="cxNova">+ Nova</button></h3>
