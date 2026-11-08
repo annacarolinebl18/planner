@@ -146,7 +146,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08p";
+const VER = "2026-11-08q";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -424,7 +424,9 @@ function resultadoBusca() {
 function paginaBusca() {
   const res = resultadoBusca();
   const total = res.reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
-  const abertas = res.filter(l => l.parcela && Number(l.parcela.split("/")[0]) < Number(l.parcela.split("/")[1])).length;
+  // compras ainda em parcelas (cada compra conta uma vez, nao cada mes)
+  const abertas = new Set(res.filter(l => l.parcela && Number(l.parcela.split("/")[0]) < Number(l.parcela.split("/")[1]))
+    .map(l => [l.nome, l.parcela.split("/")[1], ondeDe(l), Math.abs(l.valor).toFixed(2)].join("|"))).size;
   const meses = [...new Set(res.map(mesDoGasto))].length;
   const usadas = [...new Set(S.lancamentos.map(l => l.categoria))].filter(c => !["transferencia", "cartao", "casa_igor"].includes(c));
   const chip = (attr, val, on, txt) => `<span class="chip ${on ? "on" : ""}" ${attr}="${esc(val)}">${esc(txt)}</span>`;
