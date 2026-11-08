@@ -205,7 +205,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09a";
+const VER = "2026-11-09c";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -405,8 +405,13 @@ function classificar(l) {
  * Saldo = o que esta na conta (regra dela). Nada se desconta antes.
  * ================================================================ */
 let MES = ym(new Date());
+function mesDoLanc(l) {
+  if (l.refMes) return l.refMes;
+  const m = (l.data || "").slice(0, 7);
+  return l.valor > 0 && l.categoria === "renda" && /SALARIO/i.test(l.descBanco || "") ? addMes(m, 1) : m;
+}
 function lancamentosDoMes(m) {
-  return S.lancamentos.filter(l => !l.fatura && (l.data || "").slice(0, 7) === m)
+  return S.lancamentos.filter(l => !l.fatura && mesDoLanc(l) === m)
     .sort((a, b) => (a.data || "").localeCompare(b.data || ""));
 }
 function casaFixo(f, l) {
@@ -414,7 +419,7 @@ function casaFixo(f, l) {
 }
 function previstosDoMes(m) {
   const [a, b] = m.split("-").map(Number);
-  const lista = lancamentosDoMes(m);
+  const lista = S.lancamentos.filter(l => !l.fatura && (l.refMes || (l.data || "").slice(0, 7)) === m);
   const out = [];
   S.fixos.forEach(f => {
     if (f.ate && m > f.ate) return;
@@ -436,14 +441,14 @@ function previstosDoMes(m) {
   return out.sort((x, y) => x.data.localeCompare(y.data));
 }
 const ehMovimento = l => !["transferencia", "fatura_interna"].includes(l.categoria);
-/* o salario do fim do mes e do MES SEGUINTE (ela, 08/11): o de 30/10 e o de novembro,
- * o de 30/11 ja e o de dezembro. No Mes ele aparece na linha do dia, mas nao entra
- * em "Entrou" nem em "Ainda vai entrar" do mes em que caiu. */
+/* o salario do fim do mes e do MES SEGUINTE (ela, 08/11): o de 30/10 aparece e conta
+ * em novembro ("entrou no final de outubro, mas e de novembro"); o de 30/11, em dezembro. */
 const ehSalario = l => l.valor > 0 && l.categoria === "renda" && (/SALARIO/i.test(l.descBanco || "") || (l.previsto && /sal/i.test(l.nome || "")));
 function resumo(m) {
   const lista = lancamentosDoMes(m).filter(ehMovimento);
-  const prev = previstosDoMes(m);
-  const soma = (arr, sinal) => arr.filter(l => (sinal > 0 ? l.valor > 0 : l.valor < 0) && !ehSalario(l)).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
+  const prev = previstosDoMes(m).filter(p => !ehSalario(p)).concat(previstosDoMes(addMes(m, -1)).filter(ehSalario))
+    .sort((x, y) => x.data.localeCompare(y.data));
+  const soma = (arr, sinal) => arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
   return { lista, prev, entrou: soma(lista, 1), saiu: soma(lista, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
 }
 
@@ -906,11 +911,49 @@ function recalcularFaturaAberta(id) {
 }
 
 /* clicar numa linha: lancamento importado (renomear/classificar, vale para os proximos) ou previsto */
+/* conta prevista: "Paguei" (ela, 08/11: "e essencial"). Vira um lancamento provisorio
+ * que conta para o mes da conta; quando o extrato chega, a linha do banco entra no lugar. */
+function abrirPrevisto(p, m) {
+  if (!p) return;
+  if (p.id.indexOf("fat_") === 0) return abrirFatura(S.faturas.find(f => "fat_" + f.id === p.id));
+  const fx = S.fixos.find(f => f.id === p.fixoId); if (!fx) return;
+  const entrada = p.valor > 0, nomeMes = MESES[Number(m.slice(5)) - 1];
+  janela(p.nome, `
+    <div class="dim" style="margin-bottom:12px">${entrada ? "Cai em" : "Vence em"} ${ddmm(p.data)} · ${brl(Math.abs(p.valor))}</div>
+    <div class="lado"><div class="campo"><label>${entrada ? "Dia em que caiu" : "Dia em que pagou"}</label><input id="vData" type="date" value="${hojeS()}"></div>
+      <div class="campo"><label>Valor</label><input id="vValor" inputmode="decimal" value="${Math.abs(p.valor).toFixed(2).replace(".", ",")}"></div></div>
+    <div class="acoes"><button class="bt pri" id="vPaguei">${entrada ? "Recebido" : "Pago"}</button></div>
+    <div class="acoes" style="margin-top:10px"><button class="bt ghost" id="vPular">Pular ${nomeMes}</button><button class="bt ghost" id="vEditar">Editar o fixo</button></div>`,
+  (f, fechar) => {
+    f.querySelector("#vPaguei").addEventListener("click", () => {
+      const v = num(f.querySelector("#vValor").value); if (!v) { aviso("Coloque o valor."); return; }
+      S.lancamentos.push({ id: uid(), origem: "manual", provisorio: true, nome: p.nome, valor: Math.sign(p.valor) * Math.abs(v), data: f.querySelector("#vData").value || hojeS(),
+        categoria: p.categoria, fixo: fx.id, refMes: m, aClassificar: false, em: new Date().toISOString() });
+      salvar(); fechar(); render(); aviso((entrada ? "Recebido: " : "Pago: ") + p.nome + ".");
+    });
+    f.querySelector("#vPular").addEventListener("click", () => {
+      fx.excecoes = fx.excecoes || {}; fx.excecoes[m] = Object.assign(fx.excecoes[m] || {}, { pular: true }); fx.em = new Date().toISOString();
+      salvar(); fechar(); render(); aviso(p.nome + ": sem " + nomeMes + ".");
+    });
+    f.querySelector("#vEditar").addEventListener("click", () => { fechar(); abrirFixo(fx, m); });
+  });
+}
+/* extrato importado: a linha do banco toma o lugar do "Paguei" provisorio (sem duplicar) */
+function trocarProvisorios() {
+  S.lancamentos.filter(l => l.provisorio).forEach(p => {
+    const fx = S.fixos.find(f => f.id === p.fixo);
+    const real = S.lancamentos.find(x => x !== p && x.origem !== "manual" && !x.fatura && !x.substituiu && Math.sign(x.valor) === Math.sign(p.valor)
+      && Math.abs(difDias(p.data, x.data)) <= 10 && (Math.abs(x.valor - p.valor) < 0.01 || (fx && fx.padrao && casaFixo(fx, x))));
+    if (!real) return;
+    Object.assign(real, { fixo: p.fixo, refMes: p.refMes, substituiu: p.id });
+    lapide("i|" + p.id); S.lancamentos = S.lancamentos.filter(y => y !== p);
+  });
+}
 function abrirLancamento(id) {
   const l = S.lancamentos.find(x => x.id === id);
   if (!l) {
     const p = previstosDoMes(MES).find(x => x.id === id);
-    if (p && p.fixoId) return abrirFixo(S.fixos.find(f => f.id === p.fixoId), MES);
+    if (p && p.fixoId) return abrirPrevisto(p, MES);
     if (p && id.indexOf("fat_") === 0) return abrirFatura(S.faturas.find(f => "fat_" + f.id === id));
     return;
   }
@@ -1110,6 +1153,7 @@ function juntar(res) {
     S.lancamentos.push(classificar(Object.assign({ id: uid(), chave, fatura: fatId }, l))); novos++;
   });
   if (res.saldo && (!S.saldo || res.saldo.em >= S.saldo.em)) S.saldo = res.saldo;
+  trocarProvisorios();
   marcarFaturasPagas();
   salvar();
   return { novos, repetidos };
@@ -1357,7 +1401,7 @@ function eventos(de, ate) {
   const out = [];
   for (let m = de.slice(0, 7); m <= ate.slice(0, 7); m = addMes(m, 1)) {
     previstosDoMes(m).forEach(p => { if (p.data >= de && p.data <= ate)
-      out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: p.valor < 0 ? "a pagar" : "a receber", uid: "fin-" + p.id + "-" + p.data }); });
+      out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: p.valor < 0 ? "a pagar" : "a receber", uid: "fin-" + p.id + "-" + p.data, pid: p.id, pm: m }); });
   }
   (S.compromissos || []).forEach(c => { if (c.data && c.data >= de && c.data <= ate)
     out.push({ data: c.data, hora: c.hora || null, tipo: "comp", titulo: c.titulo, sub: [c.hora, c.obs].filter(Boolean).join(" · "), uid: "comp-" + c.id }); });
@@ -1369,13 +1413,13 @@ function eventos(de, ate) {
 }
 function atrasados() {
   const h = hojeS(), out = [];
-  previstosDoMes(h.slice(0, 7)).forEach(p => { if (p.data < h && p.valor < 0) out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: "venceu em " + ddmm(p.data) + " e ainda não apareceu no extrato" }); });
+  previstosDoMes(h.slice(0, 7)).forEach(p => { if (p.data < h && p.valor < 0) out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: "venceu em " + ddmm(p.data), pid: p.id, pm: h.slice(0, 7) }); });
   (S.casa || []).forEach(x => { const pr = proximaCasa(x); if (pr && x.cadaDias >= 7 && pr < h) out.push({ data: pr, tipo: "casa", titulo: x.nome, sub: "última vez em " + ddmm(ultimaVez(x)) }); });
   return out;
 }
 function linhaEv(e) {
   const d = dt(e.data);
-  return `<div class="lin" data-ev="${e.tipo}"><span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span>
+  return `<div class="lin" ${e.pid ? `data-prev="${esc(e.pid)}" data-pm="${e.pm}"` : `data-ev="${e.tipo}"`}><span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span>
     <span class="t"><i class="tag ${e.tipo}"></i>${esc(e.titulo)}${e.sub ? `<small>${esc(e.sub)}</small>` : ""}</span>${e.valor ? `<span class="val ${e.valor > 0 ? "ok" : ""}">${brl(Math.abs(e.valor))}</span>` : ""}</div>`;
 }
 /* melhor dia do mercado: quando o cartao de refeicao e alimentacao recarrega.
@@ -1502,6 +1546,7 @@ function ligarArea() {
   if (AREA === "compras") { ligarCompras(); return; }
   document.querySelectorAll("[data-area]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.area)));
   document.querySelectorAll(".lin[data-ev]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.ev)));
+  document.querySelectorAll(".lin[data-prev]").forEach(el => el.addEventListener("click", () => abrirPrevisto(previstosDoMes(el.dataset.pm).find(x => x.id === el.dataset.prev), el.dataset.pm)));
   document.querySelectorAll("[data-fiz]").forEach(b => b.addEventListener("click", ev => {
     ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.fiz), quem = x.resp && cfg().parceiro ? cfg().parceiro : "eu";
     registrarCasa(x, hojeS(), quem); render(); aviso("Registrado: " + x.nome + (quem === "eu" ? "" : " (" + quem + ")") + ".");
