@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09o";
+const VER = "2026-11-09p";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -804,34 +804,53 @@ function ligarBusca() {
   const lp = $("#bLimpar"); if (lp) lp.addEventListener("click", () => { BUSCA.texto = ""; BUSCA.cats = []; BUSCA.onde = []; render(); });
 }
 
+/* Parcelas do mes escolhido (ela, 09/11): em dezembro "2/2", em janeiro some; "3/4" -> "4/4".
+ * Mes com fatura importada: as parcelas dela. Mes futuro: projeta da ultima fatura de cada cartao. */
+const difMeses = (a, b) => (Number(a.slice(0, 4)) * 12 + Number(a.slice(5, 7))) - (Number(b.slice(0, 4)) * 12 + Number(b.slice(5, 7)));
+function parcelasDoMes(m) {
+  const out = [];
+  [...new Set(S.faturas.map(f => f.cartao))].forEach(cartao => {
+    const fs = S.faturas.filter(f => f.cartao === cartao);
+    const doMes = fs.find(f => f.vence.slice(0, 7) === m);
+    const item = (l, k, n) => out.push({ chave: cartao + "|" + l.nome + "|" + n + "|" + Math.abs(l.valor).toFixed(2), nome: l.nome, cartao, k, n, valor: Math.abs(l.valor), dividido: l.dividido });
+    if (doMes) {
+      S.lancamentos.filter(l => l.fatura === doMes.id && l.parcela).forEach(l => { const [i, n] = l.parcela.split("/").map(Number); item(l, i, n); });
+      return;
+    }
+    const ult = fs.filter(f => f.vence.slice(0, 7) < m).sort((a, b) => a.vence.localeCompare(b.vence)).pop();
+    if (!ult) return;
+    S.lancamentos.filter(l => l.fatura === ult.id && l.parcela).forEach(l => {
+      const [i, n] = l.parcela.split("/").map(Number), k = i + difMeses(m, ult.vence.slice(0, 7));
+      if (k >= 1 && k <= n) item(l, k, n);
+    });
+  });
+  return out.sort((a, b) => (b.n - b.k) - (a.n - a.k) || a.nome.localeCompare(b.nome));
+}
 function paginaParcelas() {
+  const nomeMes = MESES[Number(MES.slice(5)) - 1], lista = parcelasDoMes(MES);
+  const total = lista.reduce((s, x) => s + x.valor, 0);
   const fats = S.faturas.slice().sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
-  return `<div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
+  return `<div class="box"><h3>Parcelas de ${nomeMes}</h3>${lista.length ? lista.map(x => `<div class="lin" style="cursor:default">
+      <span class="t">${esc(x.nome)}<small>${esc(x.cartao)}${x.k === x.n ? " · última" : " · faltam " + (x.n - x.k)}${x.dividido ? '<span class="pil br">metade é sua: ' + brl(x.valor * x.dividido) + "</span>" : ""}</small></span>
+      <span class="pil ${x.k === x.n ? "ok" : "br"}" style="font-size:12px">${x.k}/${x.n}</span><span class="val">${brl(x.valor)}</span></div>`).join("")
+      + `<div class="lin" style="cursor:default;font-weight:700"><span class="t">Total em parcelas</span><span class="val">${brl(total)}</span></div>`
+      : '<div class="vazio">Nenhuma parcela neste mês.</div>'}</div>
+    <div class="box"><h3>Próximos meses</h3>${htmlParcelas()}</div>
     <div class="box"><h3>Faturas</h3>${fats.length ? fats.map(f => `<div class="lin" data-fat="${f.id}"><span class="d">${ddmm(f.vence)}</span>
       <span class="t">${esc(f.cartao)}<small>vence ${ddmm(f.vence)}/${f.vence.slice(0, 4)}</small></span>
       <span class="val">${brl(-f.total)} ${f.paga ? '<span class="pil ok">paga</span>' : f.emAberto ? '<span class="pil br">em aberto</span>' : '<span class="pil warn">a pagar</span>'}</span></div>`).join("")
       : '<div class="vazio">Importe as faturas do Mercado Pago e do Nubank.</div>'}</div>`;
 }
 function htmlParcelas() {
-  // parcelas da fatura mais recente de cada cartao, projetadas para os proximos meses
-  const ult = {};
-  S.faturas.forEach(f => { if (!ult[f.cartao] || f.vence > ult[f.cartao].vence) ult[f.cartao] = f; });
-  const linhas = [];
-  Object.values(ult).forEach(f => S.lancamentos.filter(l => l.fatura === f.id && l.parcela).forEach(l => {
-    const [i, n] = l.parcela.split("/").map(Number);
-    if (i >= n) return;
-    linhas.push({ nome: l.nome, cartao: f.cartao, i, n, base: f.vence.slice(0, 7), valor: Math.abs(l.valor) });
-  }));
-  if (!linhas.length) return '<div class="vazio">Importe as faturas para ver as parcelas.</div>';
-  const m0 = addMes(linhas.map(x => x.base).sort().pop(), 1);
-  const meses = [0, 1, 2, 3].map(k => addMes(m0, k));
+  // a partir do mes escolhido, 4 meses
+  const meses = [0, 1, 2, 3].map(k => addMes(MES, k)), linhas = {};
+  meses.forEach((m, j) => parcelasDoMes(m).forEach(x => { (linhas[x.chave] = linhas[x.chave] || { x, c: [] }).c[j] = x; }));
+  const L = Object.values(linhas);
+  if (!L.length) return '<div class="vazio">Nenhuma parcela nos próximos meses.</div>';
   let h = '<div class="parc"><span></span>' + meses.map(m => `<span class="h">${MESES[Number(m.slice(5)) - 1].slice(0, 3)}</span>`).join("");
-  linhas.sort((a, b) => (b.n - b.i) - (a.n - a.i)).forEach(x => {
+  L.sort((a, b) => b.c.filter(Boolean).length - a.c.filter(Boolean).length).forEach(({ x, c }) => {
     h += `<span>${esc(x.nome)} <span class="faint">(${esc(x.cartao)})</span></span>`;
-    meses.forEach(m => {
-      const k = x.i + (Number(m.slice(0, 4)) * 12 + Number(m.slice(5))) - (Number(x.base.slice(0, 4)) * 12 + Number(x.base.slice(5)));
-      h += k <= x.n ? `<span class="c ${k === x.n ? "fim" : ""}">${k}/${x.n}</span>` : "<span></span>";
-    });
+    meses.forEach((m, j) => { const y = c[j]; h += y ? `<span class="c ${y.k === y.n ? "fim" : ""}">${y.k}/${y.n}</span>` : "<span></span>"; });
   });
   return h + "</div>";
 }
