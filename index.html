@@ -209,7 +209,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09e";
+const VER = "2026-11-09f";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -1439,7 +1439,7 @@ function eventos(de, ate) {
   const out = [];
   for (let m = de.slice(0, 7); m <= ate.slice(0, 7); m = addMes(m, 1)) {
     previstosDoMes(m).forEach(p => { if (p.data >= de && p.data <= ate)
-      out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: p.valor < 0 ? "a pagar" : "a receber", uid: "fin-" + p.id + "-" + p.data, pid: p.id, pm: m }); });
+      out.push({ data: p.data, tipo: "fin", titulo: p.nome, valor: p.valor * (p.dividido || 1), sub: "", uid: "fin-" + p.id + "-" + p.data, pid: p.id, pm: m }); });
   }
   (S.compromissos || []).forEach(c => { if (c.data && c.data >= de && c.data <= ate)
     out.push({ data: c.data, hora: c.hora || null, tipo: "comp", titulo: c.titulo, sub: [c.hora, c.obs].filter(Boolean).join(" · "), uid: "comp-" + c.id }); });
@@ -1458,7 +1458,7 @@ function atrasados() {
 function linhaEv(e) {
   const d = dt(e.data);
   return `<div class="lin" ${e.pid ? `data-prev="${esc(e.pid)}" data-pm="${e.pm}"` : `data-ev="${e.tipo}"`}><span class="dd">${SEM[d.getDay()]}<b>${d.getDate()}</b></span>
-    <span class="t"><i class="tag ${e.tipo}"></i>${esc(e.titulo)}${e.sub ? `<small>${esc(e.sub)}</small>` : ""}</span>${e.valor ? `<span class="val ${e.valor > 0 ? "ok" : ""}">${brl(Math.abs(e.valor))}</span>` : ""}</div>`;
+    <span class="t"><i class="tag ${e.tipo}"></i>${esc(e.titulo)}${e.sub ? `<small>${esc(e.sub)}</small>` : ""}</span>${e.valor ? `<span class="val ${e.valor > 0 ? "ok" : ""}">${brl(Math.abs(e.valor))}</span>` : ""}${e.pid ? `<button class="pago-bt ${e.valor > 0 ? "" : "apagar"}" data-pagarev="${esc(e.pid)}" data-pm="${e.pm}">${e.valor > 0 ? "A receber" : "A pagar"}</button>` : ""}</div>`;
 }
 /* melhor dia do mercado: quando o cartao de refeicao e alimentacao recarrega.
  * Ela: Pluxee, ultimo dia util, junto com o salario. Igor: Flash, primeiro dia util. Fica em Ajustes > Nome e metas. */
@@ -1585,6 +1585,9 @@ function ligarArea() {
   document.querySelectorAll("[data-area]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.area)));
   document.querySelectorAll(".lin[data-ev]").forEach(el => el.addEventListener("click", () => irPara(el.dataset.ev)));
   document.querySelectorAll(".lin[data-prev]").forEach(el => el.addEventListener("click", () => abrirPrevisto(previstosDoMes(el.dataset.pm).find(x => x.id === el.dataset.prev), el.dataset.pm)));
+  document.querySelectorAll("[data-pagarev]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); pagarPrevisto(previstosDoMes(b.dataset.pm).find(x => x.id === b.dataset.pagarev), b.dataset.pm);
+  }));
   document.querySelectorAll("[data-fiz]").forEach(b => b.addEventListener("click", ev => {
     ev.stopPropagation(); const x = S.casa.find(y => y.id === b.dataset.fiz), quem = x.resp && cfg().parceiro ? cfg().parceiro : "eu";
     registrarCasa(x, hojeS(), quem); render(); aviso("Registrado: " + x.nome + (quem === "eu" ? "" : " (" + quem + ")") + ".");
