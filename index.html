@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09j";
+const VER = "2026-11-09k";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -482,16 +482,17 @@ const ehMovimento = l => !["transferencia", "fatura_interna"].includes(l.categor
 const ehSalario = l => l.valor > 0 && l.categoria === "renda" && (/SALARIO/i.test(l.descBanco || "") || (l.previsto && /sal/i.test(l.nome || "")));
 function resumo(m) {
   _vir = {};
-  const lista = lancamentosDoMes(m).filter(ehMovimento);
+  const lista = lancamentosDoMes(m);
+  const naConta = lista.filter(l => !l.pagoFora);
   const h = hojeS(), ini = inicioDoMes(m), fim = fimDoMes(m);
   const fase = fim < h ? "passado" : ini > h ? "futuro" : "atual";
   // mes que ja fechou nao tem "a pagar": o que nao apareceu no extrato nao vira pendencia
   const prev = fase === "passado" ? [] : previstosDoMes(addMes(m, -1)).concat(previstosDoMes(m)).concat(previstosDoMes(addMes(m, 1)))
     .filter(p => periodoDe(p.data) === m).sort((x, y) => x.data.localeCompare(y.data));
-  const soma = (arr, sinal) => arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
+  const soma = (arr, sinal) => Math.round(arr.filter(l => sinal > 0 ? l.valor > 0 : l.valor < 0).reduce((s, l) => s + Math.abs(l.valor), 0) * 100) / 100;
   const comecou = ini <= (S.saldo ? S.saldo.em : "") ? saldoNoDia(addDias(ini, -1)) : null;
   const terminou = fase === "passado" && S.saldo && fim <= S.saldo.em ? saldoNoDia(fim) : null;
-  return { lista, prev, fase, ini, fim, comecou, terminou, entrou: soma(lista, 1), saiu: soma(lista, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
+  return { lista, prev, fase, ini, fim, comecou, terminou, entrou: soma(naConta, 1), saiu: soma(naConta, -1), vaiEntrar: soma(prev, 1), vaiSair: soma(prev, -1) };
 }
 
 /* ================================================================
@@ -568,8 +569,8 @@ function linhaLanc(l, fut) {
   return `<div class="lin ${fut ? "fut" : ""}" data-id="${esc(l.id)}">
       <span class="d">${ddmm(l.venc || l.data)}</span>
       <span class="t">${esc(l.nome)}
-        <small>${ehSalario(l) ? "salário de " + MESES[Number(periodoDe(l.data).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}</small></span>
-      <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor * (l.dividido || 1))}</span>${botaoPago(l)}</div>`;
+        <small>${ehSalario(l) ? "salário de " + MESES[Number(periodoDe(l.data).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade é sua: ' + brl(Math.abs(l.valor * l.dividido)) + "</span>" : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}</small></span>
+      <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor)}</span>${botaoPago(l)}</div>`;
 }
 function paginaMes(r) {
   const sal = S.saldo;
@@ -591,7 +592,11 @@ function paginaMes(r) {
     <div class="cards" style="grid-template-columns:1fr 1fr">
       <div class="card"><div class="r">Entrou</div><div class="v ok">${brl(r.entrou)}</div></div>
       <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
-    </div>`;
+    </div>
+    ${r.comecou != null && r.terminou != null ? (() => { const conta = Math.round((r.comecou + r.entrou - r.saiu) * 100) / 100, dif = Math.round((r.terminou - conta) * 100) / 100;
+      return `<div class="box conta-g" style="margin-top:-4px"><div><span>Começou com</span><span>${brl(r.comecou)}</span></div><div><span>+ Entrou</span><span>${brl(r.entrou)}</span></div>
+        <div><span>- Saiu</span><span>${brl(r.saiu)}</span></div><div class="tot" style="color:${conta < 0 ? "var(--bad)" : "var(--ok)"}"><span>= Terminou com</span><span>${brl(conta)}</span></div>
+        ${Math.abs(dif) >= 0.01 ? `<div style="color:var(--warn)"><span>Diferença para o extrato</span><span>${brl(dif)}</span></div>` : '<div style="color:var(--ok)"><span>Confere com o extrato</span><span></span></div>'}</div>`; })() : ""}`;
   else if (r.fase === "futuro") topo = `
     <div class="faint" style="font-size:12px;margin:-4px 0 8px">Previsão · ${per}</div>
     <div class="cards" style="grid-template-columns:1fr 1fr">
@@ -622,7 +627,7 @@ function mediaDiaADia() {
   // media dos 3 ultimos meses fechados: saidas da conta que nao sao contas fixas, cartao, investimento ou caixinha
   const meses = [1, 2, 3].map(i => addMes(MES_ATUAL(), -i));
   const tot = meses.map(m => lancamentosDoMes(m).filter(l => l.valor < 0 && ehMovimento(l) && !l.provisorio && l.categoria !== "cartao"
-    && !["investimento", "metas"].includes(l.categoria) && !S.fixos.some(f => casaFixo(f, l))).reduce((s, l) => s - l.valor * (l.dividido || 1), 0));
+    && !["investimento", "metas"].includes(l.categoria) && !S.fixos.some(f => casaFixo(f, l))).reduce((s, l) => s - l.valor, 0));
   return Math.round(tot.reduce((a, b) => a + b, 0) / meses.length * 100) / 100;
 }
 const MES_ATUAL = () => periodoDe(hojeS());
