@@ -216,7 +216,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09n";
+const VER = "2026-11-09o";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -944,7 +944,7 @@ function paginaRegra(r) {
  * ================================================================ */
 function projecao(c) {
   const falta = Math.max(0, (c.meta || 0) - (c.saldo || 0));
-  if (!c.meta) return { falta: 0, texto: c.porMes ? "guardando " + brl(c.porMes) + " por mês" : "sem meta" };
+  if (!c.meta) return { falta: 0, texto: c.porMes ? "plano: " + brl(c.porMes) + " por mês" : "sem meta" };
   if (!falta) return { falta, texto: "meta alcançada" };
   if (c.data) {
     const hoje = new Date(), alvo = new Date(c.data + "T12:00:00");
@@ -959,12 +959,13 @@ function projecao(c) {
 function paginaCaixinhas() {
   const cx = ordemCx();
   const total = cx.reduce((s, c) => s + (c.saldo || 0), 0), porMes = cx.filter(c => !c.pausada).reduce((s, c) => s + (c.porMes || 0), 0);
+  const guardadoMes = cx.reduce((s, c) => s + ((c.feitos || {})[MES] || 0), 0), nomeMes = MESES[Number(MES.slice(5)) - 1];
   const rd = rendaDoMes(MES), limite = rd.total * 0.2;
   const rM = resumo(MES), plM = planoCaixinhas(MES, rM);
   return `${plM ? `<div class="cards" style="grid-template-columns:1fr 1fr">${cardGuardar(plM)}</div>${htmlPlano(MES, rM, plM, true)}` : ""}
     <div class="cards" style="grid-template-columns:repeat(2,1fr)">
       <div class="card"><div class="r">Guardado nas caixinhas</div><div class="v ok">${brl(total)}</div></div>
-      <div class="card"><div class="r">Guardar por mês</div><div class="v ${porMes > limite && limite ? "warn" : ""}">${brl(porMes)}</div><div class="faint" style="font-size:11.5px">20% da renda: ${brl(limite)}</div></div></div>
+      <div class="card"><div class="r">Guardado em ${nomeMes}</div><div class="v ${guardadoMes ? "ok" : ""}">${brl(guardadoMes)}</div><div class="faint" style="font-size:11.5px">plano: ${brl(porMes)} por mês</div></div></div>
     <div class="box"><h3>Caixinhas <button class="bt sm" id="cxNova">+ Nova</button></h3>
       ${cx.length ? cx.map(c => {
         const pr = projecao(c), pct = c.meta ? Math.min(100, Math.round((c.saldo || 0) / c.meta * 100)) : 0;
@@ -972,7 +973,8 @@ function paginaCaixinhas() {
           <div style="display:flex;align-items:center;gap:8px"><span class="faint" style="width:16px">${c.ordem || ""}</span><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "ordinários" : c.grupo === 30 ? "básicos" : "essencial"}</span></b>
             <span class="val">${brl(c.saldo || 0)}${c.meta ? ' <span class="faint">de ' + brl(c.meta) + "</span>" : ""}</span></div>
           ${c.meta ? `<div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin:6px 0 4px"><div style="height:100%;width:${pct}%;background:var(--g20)"></div></div>` : ""}
-          ${c.cobre ? htmlEnvelope(c, MES) : `<small class="faint">${esc(pr.texto)}</small>`}</div>`;
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px"><span style="flex:1">${c.cobre ? htmlEnvelope(c, MES) : `<small class="faint">${esc(pr.texto)}</small>`}</span>
+            ${(c.feitos || {})[MES] != null ? `<button class="pago-bt on" data-cxdes="${c.id}">Guardado ${brl(c.feitos[MES])}</button>` : c.porMes ? `<button class="pago-bt" data-cxadd="${c.id}" data-v="${c.porMes}">Guardar ${brl(c.porMes)}</button>` : ""}</div></div>`;
       }).join("") : '<div class="vazio">Nenhuma caixinha ainda.</div>'}</div>`;
 }
 function abrirCaixinha(c) {
