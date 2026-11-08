@@ -229,7 +229,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-10a";
+const VER = "2026-11-10b";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -1021,12 +1021,12 @@ function paginaRegra(r) {
       ${cs.map(c => `<div class="lin" style="cursor:default"><span class="t">${esc(cat(c).nome)}${c === "casa" && igorCasa ? "<small>já sem os " + brl(igorCasa) + " do Igor</small>" : ""}</span><span class="val">${brl(porCat[c])}</span></div>`).join("")}</div>` : "";
   }).join("");
   return `<div class="box"><h3>Regra 50/30/20</h3>
-      <div class="donuts">${donut(ideal, "Ideal", "pela renda")}${donut(planejado, "Planejado", "pelos fixos")}${donut(real, "Real", "o que gastou")}</div>
+      <div class="donuts" ${r.fase === "futuro" ? 'style="grid-template-columns:repeat(2,1fr)"' : ""}>${donut(ideal, "Ideal", "pela renda")}${donut(planejado, "Planejado", "pelos fixos")}${r.fase === "futuro" ? "" : r.fase === "atual" ? donut(real, "Em andamento", "até hoje") : donut(real, "Real", "como fechou")}</div>
       <div class="leg">${GRUPOS.map(x => `<span><i style="background:var(--g${x.g})"></i>${x.nome} ${x.g}%</span>`).join("")}</div></div>
-    <div class="box"><h3>Quanto já foi de cada parte</h3>${renda ? barras : '<div class="vazio">Sem renda no mês ainda.</div>'}
+    ${r.fase === "futuro" ? "" : `<div class="box"><h3>Quanto já foi de cada parte</h3>${renda ? barras : '<div class="vazio">Sem renda no mês ainda.</div>'}
       <div class="faint" style="font-size:11.5px">Renda de ${MESES[Number(MES.slice(5)) - 1]}: ${brl(renda)} (salário do fim do mês anterior ${brl(rd.salario)} + o que entrou no mês ${brl(rd.outras)}). O cartão entra pelo que você comprou, não pela fatura inteira.</div></div>
     ${htmlCaminhoIdeal(renda, real)}
-    <div class="box"><h3>O que pesa em cada parte</h3>${detalhe || '<div class="vazio">Sem gastos no mês ainda.</div>'}</div>`;
+    <div class="box"><h3>O que pesa em cada parte</h3>${detalhe || '<div class="vazio">Sem gastos no mês ainda.</div>'}</div>`}`;
 }
 /* ================================================================
  * CAIXINHAS (08/11): quanto guardar por mes, quanto ja tem e quando chega.
