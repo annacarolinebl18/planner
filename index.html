@@ -146,7 +146,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08r";
+const VER = "2026-11-08s";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -1011,6 +1011,24 @@ async function importar(arquivos) {
   render();
 }
 
+/* ---------------- versao nova (08/11) ----------------
+ * O iPhone guarda a copia do app. Ao abrir (e ao voltar para o app) ele
+ * confere o versao.txt do site; se mudou, recarrega sozinho. Uma tentativa
+ * por versao, para nao ficar em laco enquanto o GitHub ainda publica. */
+async function conferirVersao() {
+  try {
+    const r = await fetch("versao.txt?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const v = (await r.text()).trim();
+    if (!v || v === VER) return;
+    let tentou = null; try { tentou = sessionStorage.getItem("pp-versao-tentada"); } catch (e) {}
+    if (tentou === v) return;
+    try { sessionStorage.setItem("pp-versao-tentada", v); } catch (e) {}
+    aviso("Versão nova do app. Atualizando...", 3);
+    setTimeout(() => location.replace(location.pathname + "?v=" + encodeURIComponent(v)), 900);
+  } catch (e) { /* sem internet: fica a que esta */ }
+}
+
 /* ---------------- ligar ---------------- */
 $("#mesAnt").addEventListener("click", () => { MES = addMes(MES, -1); render(); });
 $("#mesProx").addEventListener("click", () => { MES = addMes(MES, 1); render(); });
@@ -1020,7 +1038,8 @@ $("#btImportar").addEventListener("click", () => $("#arquivo").click());
 document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { PAG = b.dataset.pag; render(); window.scrollTo(0, 0); }));
 usarTema(temaAtual());
 puxarDrive(false);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") puxarDrive(false); });
+conferirVersao();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { puxarDrive(false); conferirVersao(); } });
 $("#arquivo").addEventListener("change", e => { importar([...e.target.files]); e.target.value = ""; });
 render();
 </script>
