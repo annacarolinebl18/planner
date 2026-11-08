@@ -96,9 +96,14 @@ button,input,select{font:inherit;color:inherit}
 .pil{font-size:11px;padding:1px 7px;border-radius:99px;white-space:nowrap;margin-left:4px}
 .lin small .pil{font-size:10.5px;padding:0 6px;display:inline-block;margin-top:2px}
 .pil.ok{background:var(--ok-soft)} .pil.warn{background:var(--warn-soft)} .pil.bad{background:var(--bad-soft)} .pil.br{background:var(--brand-soft)}
-.parc{display:grid;grid-template-columns:minmax(96px,1fr) repeat(4,58px);gap:4px;font-size:12px;align-items:center}
+.parc{display:grid;grid-template-columns:minmax(0,1fr) 50px repeat(4,42px);gap:4px 3px;font-size:12px;align-items:center}
+.parc .nm{font-size:11.5px;line-height:1.25;min-width:0;overflow-wrap:anywhere}
+.parc .vp{text-align:center;font-weight:600;font-size:11.5px;font-variant-numeric:tabular-nums}
+.res-c{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:8px;align-items:center;font-size:13.5px}
+.res-c .v{text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+.res-c .v small{display:block;font-size:11px;font-weight:400;color:var(--dim)}
 .parc .c small,.parc .tot small{display:block;font-size:9.5px;opacity:.8;line-height:1.1}
-.parc .c.rec{background:var(--surface-2);font-size:10.5px}
+.parc .c.rec{background:var(--surface-2);font-size:10px}
 .parc .tot{text-align:center;font-weight:700;font-size:11px;line-height:1.2}
 .parc .lbl{font-weight:600}
 .parc .sep{border-top:1px solid var(--border);height:4px;margin-top:4px}
@@ -224,7 +229,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09x";
+const VER = "2026-11-09z";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -845,7 +850,7 @@ function parcelasDoMes(m) {
   [...new Set(S.faturas.map(f => f.cartao))].forEach(cartao => {
     const fs = S.faturas.filter(f => f.cartao === cartao);
     const doMes = fs.find(f => f.vence.slice(0, 7) === m);
-    const item = (l, k, n) => out.push({ chave: cartao + "|" + l.nome + "|" + n + "|" + Math.abs(l.valor).toFixed(2), nome: l.nome, cartao, k, n, valor: Math.abs(l.valor), dividido: l.dividido });
+    const item = (l, k, n) => out.push({ chave: [cartao, l.nome, n, difMeses(m, "2000-01") - k, Math.round(Math.abs(l.valor))].join("|"), nome: l.nome, cartao, k, n, valor: Math.abs(l.valor), dividido: l.dividido });
     if (doMes) {
       S.lancamentos.filter(l => l.fatura === doMes.id && l.parcela).forEach(l => { const [i, n] = l.parcela.split("/").map(Number); item(l, i, n); });
       return;
@@ -866,6 +871,7 @@ function paginaParcelas() {
   const todos = [...new Set(S.faturas.map(f => f.cartao))];
   const fats = S.faturas.filter(f => cartaoLigado(f.cartao)).sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
   return `<div class="chips" style="justify-content:center">${todos.map(c => `<span class="chip ${cartaoLigado(c) ? "on" : ""}" data-cartao="${esc(c)}">${esc(c)}</span>`).join("")}</div>
+    ${htmlResumoCartoes()}
     <div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
     <div class="box"><h3>Faturas</h3>${fats.length ? fats.map(f => `<div class="lin" data-fat="${f.id}"><span class="d">${ddmm(f.vence)}</span>
       <span class="t">${esc(f.cartao)}<small>vence ${ddmm(f.vence)}/${f.vence.slice(0, 4)}</small></span>
@@ -884,37 +890,40 @@ function recorrentesCartao(cartao) {
 function faturaDoMes(cartao, m) {
   const f = S.faturas.find(x => x.cartao === cartao && x.vence.slice(0, 7) === m);
   if (f) return { valor: f.total, aberta: !!f.emAberto, real: true };
+  const primeira = S.faturas.filter(x => x.cartao === cartao).map(x => x.vence.slice(0, 7)).sort()[0];
+  if (!primeira || m < primeira) return { valor: 0, real: false, semDados: true };
   const p = parcelasDoMes(m).filter(x => x.cartao === cartao).reduce((s, x) => s + x.valor, 0);
   const r = recorrentesCartao(cartao).reduce((s, x) => s + x.valor, 0);
   return { valor: Math.round((p + r) * 100) / 100, real: false };
 }
+const n2 = v => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function htmlResumoCartoes() {
+  const cartoes = [...new Set(S.faturas.map(f => f.cartao))].filter(cartaoLigado);
+  if (!cartoes.length) return "";
+  const fs = cartoes.map(c => ({ c, f: faturaDoMes(c, MES) })), total = fs.reduce((s, x) => s + x.f.valor, 0);
+  const ant = addMes(MES, -1), antes = cartoes.map(c => faturaDoMes(c, ant)), semAntes = antes.some(f => f.semDados);
+  const d = Math.round((total - antes.reduce((s, f) => s + f.valor, 0)) * 100) / 100;
+  const cor = d > 0 ? "var(--bad)" : d < 0 ? "var(--ok)" : "var(--dim)";
+  const sub = t => `<div class="faint" style="font-size:11.5px">${t}</div>`;
+  return `<div class="cards">${fs.map(({ c, f }) => `<div class="card"><div class="r">Fatura ${esc(c)}</div><div class="v">${brl(f.valor)}</div>${sub(f.real ? (f.aberta ? "aberta" : "fechada") : f.semDados ? "sem fatura" : "previsão")}</div>`).join("")}
+    <div class="card"><div class="r">Total dos cartões</div><div class="v">${brl(total)}</div></div>
+    <div class="card"><div class="r">Diferença do mês anterior</div>${semAntes ? `<div class="v faint" style="font-size:13px">sem fatura de ${MESES[Number(ant.slice(5)) - 1]}</div>` : `<div class="v" style="color:${cor}">${d > 0 ? "+ " : d < 0 ? "- " : ""}${brl(Math.abs(d))}</div>`}</div></div>`;
+}
 function htmlParcelas() {
-  // a partir do mes escolhido, 4 meses; cada quadradinho com o valor da parcela; embaixo as faturas
+  // a partir do mes escolhido, 4 meses
   const meses = [0, 1, 2, 3].map(k => addMes(MES, k)), linhas = {};
-  const n2 = v => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   meses.forEach((m, j) => parcelasDoMes(m).filter(x => cartaoLigado(x.cartao)).forEach(x => { (linhas[x.chave] = linhas[x.chave] || { x, c: [] }).c[j] = x; }));
   const L = Object.values(linhas), cartoes = [...new Set(S.faturas.map(f => f.cartao))].filter(cartaoLigado);
   if (!L.length && !cartoes.length) return '<div class="vazio">Importe as faturas para ver as parcelas.</div>';
-  let h = '<div class="parc"><span></span>' + meses.map(m => `<span class="h">${MESES[Number(m.slice(5)) - 1].slice(0, 3)}</span>`).join("");
+  let h = '<div class="parc"><span></span><span></span>' + meses.map(m => `<span class="h">${MESES[Number(m.slice(5)) - 1].slice(0, 3)}</span>`).join("");
   L.sort((a, b) => b.c.filter(Boolean).length - a.c.filter(Boolean).length).forEach(({ x, c }) => {
-    h += `<span>${esc(x.nome)} <span class="faint">(${esc(x.cartao)})</span></span>`;
-    meses.forEach((m, j) => { const y = c[j]; h += y ? `<span class="c ${y.k === y.n ? "fim" : ""}">${y.k}/${y.n}<small>${n2(y.valor)}</small></span>` : "<span></span>"; });
+    h += `<span class="nm">${esc(x.nome)} <span class="faint">(${esc(x.cartao)})</span></span><span class="vp">${n2(x.valor)}</span>`;
+    meses.forEach((m, j) => { const y = c[j]; h += y ? `<span class="c ${y.k === y.n ? "fim" : ""}">${y.k}/${y.n}</span>` : "<span></span>"; });
   });
   // assinaturas que caem todo mes no cartao
   cartoes.forEach(cartao => recorrentesCartao(cartao).forEach(r => {
-    h += `<span>${esc(r.nome)} <span class="faint">(${esc(cartao)}, todo mês)</span></span>` + meses.map(() => `<span class="c rec">${n2(r.valor)}</span>`).join("");
+    h += `<span class="nm">${esc(r.nome)} <span class="faint">(${esc(cartao)}, todo mês)</span></span><span></span>` + meses.map(() => `<span class="c rec">${n2(r.valor)}</span>`).join("");
   }));
-  // faturas por cartao e total, com a diferenca para o mes anterior
-  const tot = meses.map(() => 0);
-  h += '<span class="sep"></span>'.repeat(5);
-  cartoes.forEach(cartao => {
-    h += `<span class="lbl">Fatura ${esc(cartao)}</span>`;
-    meses.forEach((m, j) => { const f = faturaDoMes(cartao, m); tot[j] += f.valor; h += `<span class="tot">${n2(f.valor)}<small>${f.real ? (f.aberta ? "aberta" : "fechada") : "previsão"}</small></span>`; });
-  });
-  const antes = cartoes.reduce((s, c) => s + faturaDoMes(c, addMes(MES, -1)).valor, 0);
-  h += '<span class="lbl">Total dos cartões</span>' + tot.map(v => `<span class="tot">${n2(v)}</span>`).join("");
-  h += '<span class="faint">Diferença do mês anterior</span>' + tot.map((v, j) => { const d = Math.round((v - (j ? tot[j - 1] : antes)) * 100) / 100;
-    return `<span class="tot" style="color:${d > 0 ? "var(--bad)" : d < 0 ? "var(--ok)" : "var(--dim)"}">${d > 0 ? "+" : d < 0 ? "-" : ""}${n2(Math.abs(d))}</span>`; }).join("");
   return h + "</div>";
 }
 
