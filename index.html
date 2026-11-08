@@ -221,7 +221,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09r";
+const VER = "2026-11-09s";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -583,7 +583,7 @@ function linhaLanc(l, fut) {
   return `<div class="lin ${fut ? "fut" : ""}" data-id="${esc(l.id)}">
       <span class="d">${ddmm(l.venc || l.data)}</span>
       <span class="t">${esc(l.nome)}
-        <small>${ehSalario(l) ? "salário de " + MESES[Number(periodoDe(l.data).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade é sua: ' + brl(Math.abs(l.valor * l.dividido)) + "</span>" : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}</small></span>
+        <small>${ehSalario(l) ? "salário de " + MESES[Number((salarioNoFim() ? l.data.slice(0, 7) : addMes(l.data.slice(0, 7), -1)).slice(5)) - 1] : esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}${l.doPrintItau ? '<span class="pil warn">do print</span>' : ""}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade é sua: ' + brl(Math.abs(l.valor * l.dividido)) + "</span>" : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}</small></span>
       <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor)}</span>${botaoPago(l)}</div>`;
 }
 function paginaMes(r) {
