@@ -128,6 +128,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
   <div class="topo">
     <div class="mesnav"><button class="ic" id="mesAnt" aria-label="mês anterior">‹</button><b id="mesNome"></b><button class="ic" id="mesProx" aria-label="próximo mês">›</button></div>
     <div class="acoes-topo">
+      <button class="ic" id="btBusca" title="Buscar gastos" aria-label="Buscar gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></button>
       <button class="ic" id="btImportar" title="Importar extrato ou fatura" aria-label="Importar extrato ou fatura"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></button>
       <button class="ic pri" id="btLancar" title="Lançar" aria-label="Lançar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     </div>
@@ -145,7 +146,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-08m";
+const VER = "2026-11-08p";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -158,12 +159,12 @@ const CATEGORIAS_PADRAO = [
   { id: "mercado", nome: "Mercado", grupo: 50 }, { id: "saude", nome: "Saúde", grupo: 50 },
   { id: "transporte", nome: "Transporte", grupo: 50 }, { id: "gatos", nome: "Gatos", grupo: 50 },
   { id: "cabelo", nome: "Cabelo", grupo: 50 },   // ela: "cabelo e essencial pra mim" (mega hair, alisamento, coloracao, tratamento)
-  // 30: estilo de vida (o que e escolha dela; "Basicos" na planilha antiga)
+  // 30: Basicos (o que e escolha dela)
   { id: "beleza", nome: "Beleza", grupo: 30 }, { id: "alimentacao", nome: "Comer fora", grupo: 30 },
   { id: "lazer", nome: "Lazer e saídas", grupo: 30 }, { id: "compras", nome: "Compras", grupo: 30 },
   { id: "assinaturas", nome: "Assinaturas", grupo: 30 }, { id: "academia", nome: "Academia", grupo: 30 },
   { id: "estudo", nome: "Estudo", grupo: 30 }, { id: "outros", nome: "Outros", grupo: 30 },
-  // 20: futuro ("Ordinarios" na planilha antiga)
+  // 20: Ordinarios (guardar, investir, dividas)
   { id: "investimento", nome: "Investimento", grupo: 20 }, { id: "metas", nome: "Caixinhas e metas", grupo: 20 },
   { id: "dividas", nome: "Dívidas e juros", grupo: 20 },
   // fora da regra
@@ -345,11 +346,13 @@ function render() {
   const [a, b] = MES.split("-").map(Number);
   $("#mesNome").textContent = MESES[b - 1] + " " + a;
   document.querySelectorAll(".nav button").forEach(x => x.classList.toggle("on", x.dataset.pag === PAG));
+  $("#btBusca").classList.toggle("pri", PAG === "busca");
   const r = resumo(MES);
   if (PAG === "mes") $("#tela").innerHTML = paginaMes(r);
   else if (PAG === "parcelas") $("#tela").innerHTML = paginaParcelas();
   else if (PAG === "regra") $("#tela").innerHTML = paginaRegra(r);
   else if (PAG === "caixinhas") $("#tela").innerHTML = paginaCaixinhas();
+  else if (PAG === "busca") { $("#tela").innerHTML = paginaBusca(); ligarBusca(); }
   else $("#tela").innerHTML = paginaMais();
   document.querySelectorAll(".lin[data-id]").forEach(el => el.addEventListener("click", () => abrirLancamento(el.dataset.id)));
   document.querySelectorAll(".lin[data-fat]").forEach(el => el.addEventListener("click", () => abrirFatura(S.faturas.find(f => f.id === el.dataset.fat))));
@@ -361,7 +364,7 @@ function render() {
 function linhaLanc(l, fut) {
   return `<div class="lin ${fut ? "fut" : ""}" data-id="${esc(l.id)}">
       <span class="d">${ddmm(l.data)}</span>
-      <span class="t">${esc(l.nome)}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}
+      <span class="t">${esc(l.nome)}${l.detalhe ? '<span class="pil br">' + esc(l.detalhe) + "</span>" : ""}${l.aClassificar ? '<span class="pil warn">a classificar</span>' : ""}${l.dividido ? '<span class="pil br">metade</span>' : ""}${l.pagoFora ? '<span class="pil ok">' + esc(l.pagoFora) + '</span>' : ""}
         <small>${esc(cat(l.categoria).nome)}${l.parcela ? " · parcela " + esc(l.parcela) : ""}</small></span>
       <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(l.valor * (l.dividido || 1))}</span></div>`;
 }
@@ -393,6 +396,68 @@ function htmlMiniRegra() {
       <div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${pct}%;background:${ruim && x.g !== 20 ? "var(--bad)" : "var(--g" + x.g + ")"}"></div></div></div>`;
   }).join("")}</div>`;
 }
+/* ================================================================
+ * BUSCA (08/11, modelo A): digita ou toca num filtro e ve o total,
+ * em quantas vezes e em quais meses. Os filtros aceitam varias escolhas.
+ * Mes de cada gasto: na conta, o dia; no cartao, o mes da fatura.
+ * ================================================================ */
+const BUSCA = { texto: "", periodo: 6, cats: [], onde: [], entradas: false };
+function mesDoGasto(l) {
+  if (l.fatura) { const f = S.faturas.find(x => x.id === l.fatura); return f ? f.vence.slice(0, 7) : (l.data || "").slice(0, 7); }
+  return (l.data || "").slice(0, 7);
+}
+function ondeDe(l) { if (l.fatura) { const f = S.faturas.find(x => x.id === l.fatura); return f ? f.cartao : "Cartão"; } return l.origem === "manual" ? "À mão" : "Itaú"; }
+function resultadoBusca() {
+  const norm = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const q = norm(BUSCA.texto).trim();
+  const desde = BUSCA.periodo ? addMes(ym(new Date()), -(BUSCA.periodo - 1)) : "0000-00";
+  return S.lancamentos.filter(l => {
+    if (["transferencia", "cartao", "casa_igor"].includes(l.categoria)) return false;
+    if (BUSCA.entradas ? l.valor <= 0 : l.valor >= 0) return false;
+    if (mesDoGasto(l) < desde) return false;
+    if (BUSCA.cats.length && !BUSCA.cats.includes(l.categoria)) return false;
+    if (BUSCA.onde.length && !BUSCA.onde.includes(ondeDe(l))) return false;
+    if (q && !norm([l.nome, l.descBanco, l.detalhe, cat(l.categoria).nome].join(" ")).includes(q)) return false;
+    return true;
+  }).sort((a, b) => mesDoGasto(b).localeCompare(mesDoGasto(a)) || (b.data || "").localeCompare(a.data || ""));
+}
+function paginaBusca() {
+  const res = resultadoBusca();
+  const total = res.reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0);
+  const abertas = res.filter(l => l.parcela && Number(l.parcela.split("/")[0]) < Number(l.parcela.split("/")[1])).length;
+  const meses = [...new Set(res.map(mesDoGasto))].length;
+  const usadas = [...new Set(S.lancamentos.map(l => l.categoria))].filter(c => !["transferencia", "cartao", "casa_igor"].includes(c));
+  const chip = (attr, val, on, txt) => `<span class="chip ${on ? "on" : ""}" ${attr}="${esc(val)}">${esc(txt)}</span>`;
+  return `<div class="box">
+    <div class="campo" style="margin-bottom:8px"><input id="bTexto" placeholder="Buscar: mounjaro, shein, farmácia, remédio..." value="${esc(BUSCA.texto)}" autocomplete="off"></div>
+    <div class="chips">${[3, 6, 12, 0].map(n => chip("data-bper", n, BUSCA.periodo === n, n ? n + " meses" : "tudo")).join("")}
+      ${chip("data-bent", 1, BUSCA.entradas, BUSCA.entradas ? "vendo entradas" : "vendo gastos")}</div>
+    <div class="chips">${["Itaú", "Mercado Pago", "Nubank", "À mão"].map(o => chip("data-bonde", o, BUSCA.onde.includes(o), o)).join("")}</div>
+    <div class="chips">${usadas.sort((a, b) => cat(a).nome.localeCompare(cat(b).nome)).map(c => chip("data-bcat", c, BUSCA.cats.includes(c), cat(c).nome)).join("")}
+      ${BUSCA.cats.length || BUSCA.onde.length || BUSCA.texto ? '<span class="chip" id="bLimpar">limpar</span>' : ""}</div></div>
+    <div class="cards" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><div class="r">Total</div><div class="v ${BUSCA.entradas ? "ok" : "br"}">${brl(total)}</div></div>
+      <div class="card"><div class="r">Lançamentos</div><div class="v">${res.length}</div><div class="faint" style="font-size:11.5px">em ${meses} ${meses === 1 ? "mês" : "meses"}</div></div>
+      <div class="card"><div class="r">Parcelas abertas</div><div class="v">${abertas}</div></div></div>
+    <div class="box"><h3>Lançamentos</h3>${res.length ? res.slice(0, 200).map(l => `<div class="lin" data-id="${esc(l.id)}">
+        <span class="d">${MESES[Number(mesDoGasto(l).slice(5)) - 1].slice(0, 3)}</span>
+        <span class="t">${esc(l.nome)}${l.detalhe ? ' <span class="pil br">' + esc(l.detalhe) + "</span>" : ""}
+          <small>${esc(ondeDe(l))}${l.parcela ? " · parcela " + esc(l.parcela) : ""} · ${esc(cat(l.categoria).nome)}${l.fatura ? "" : " · " + ddmm(l.data)}</small></span>
+        <span class="val ${l.valor > 0 ? "ok" : ""}">${brl(Math.abs(l.valor * (l.dividido || 1)))}</span></div>`).join("")
+      : '<div class="vazio">Nada encontrado com esses filtros.</div>'}</div>`;
+}
+function ligarBusca() {
+  const t = $("#bTexto");
+  let espera = null;
+  t.addEventListener("input", () => { clearTimeout(espera); espera = setTimeout(() => { BUSCA.texto = t.value; const pos = t.selectionStart; render(); const n = $("#bTexto"); n.focus(); n.setSelectionRange(pos, pos); }, 250); });
+  const alterna = (lista, v) => { const i = lista.indexOf(v); if (i >= 0) lista.splice(i, 1); else lista.push(v); };
+  document.querySelectorAll("[data-bper]").forEach(c => c.addEventListener("click", () => { BUSCA.periodo = Number(c.dataset.bper); render(); }));
+  document.querySelectorAll("[data-bent]").forEach(c => c.addEventListener("click", () => { BUSCA.entradas = !BUSCA.entradas; render(); }));
+  document.querySelectorAll("[data-bonde]").forEach(c => c.addEventListener("click", () => { alterna(BUSCA.onde, c.dataset.bonde); render(); }));
+  document.querySelectorAll("[data-bcat]").forEach(c => c.addEventListener("click", () => { alterna(BUSCA.cats, c.dataset.bcat); render(); }));
+  const lp = $("#bLimpar"); if (lp) lp.addEventListener("click", () => { BUSCA.texto = ""; BUSCA.cats = []; BUSCA.onde = []; render(); });
+}
+
 function paginaParcelas() {
   const fats = S.faturas.slice().sort((x, y) => y.vence.localeCompare(x.vence)).slice(0, 8);
   return `<div class="box"><h3>Parcelas nas próximas faturas</h3>${htmlParcelas()}</div>
@@ -425,7 +490,7 @@ function htmlParcelas() {
   return h + "</div>";
 }
 
-const GRUPOS = [{ g: 50, nome: "Essenciais" }, { g: 30, nome: "Estilo de vida" }, { g: 20, nome: "Futuro" }];
+const GRUPOS = [{ g: 50, nome: "Essenciais" }, { g: 30, nome: "Básicos" }, { g: 20, nome: "Ordinários" }];
 function donut(vals, titulo, sub) {
   const tot = vals.reduce((a, b) => a + b, 0), R = 42, C = 2 * Math.PI * R;
   let ac = 0;
@@ -480,16 +545,16 @@ function htmlCaminhoIdeal(renda, real) {
   const caixas = (S.caixinhas || []).filter(c => !c.pausada && (c.grupo || 20) === 20).reduce((s, c) => s + (c.porMes || 0), 0);
   const linhas = [];
   const dif = GRUPOS.map((x, i) => real[i] - ideal[i]);
-  if (dif[1] > 1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Estilo de vida passou ${brl(dif[1])}</b><small>é o que precisa sair desta parte para chegar nos 30%</small></span></div>`);
-  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Estilo de vida dentro dos 30%</b><small>ainda cabem ${brl(-dif[1])} este mês</small></span></div>`);
+  if (dif[1] > 1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Básicos passaram ${brl(dif[1])}</b><small>é o que precisa sair desta parte para chegar nos 30%</small></span></div>`);
+  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Básicos dentro dos 30%</b><small>ainda cabem ${brl(-dif[1])} este mês</small></span></div>`);
   if (dif[0] > 1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Essenciais passaram ${brl(dif[0])}</b><small>vale olhar as contas da casa e a saúde</small></span></div>`);
-  if (dif[2] < -1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Futuro: faltam ${brl(-dif[2])} para os 20%</b><small>as caixinhas de guardar somam ${brl(caixas)} por mês${caixas + 0.009 < ideal[2] ? "; para chegar nos 20% precisam de " + brl(ideal[2]) : ""}</small></span></div>`);
-  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Futuro nos 20%</b></span></div>`);
+  if (dif[2] < -1) linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b>Ordinários: faltam ${brl(-dif[2])} para os 20%</b><small>as caixinhas de guardar somam ${brl(caixas)} por mês${caixas + 0.009 < ideal[2] ? "; para chegar nos 20% precisam de " + brl(ideal[2]) : ""}</small></span></div>`);
+  else linhas.push(`<div class="lin" style="cursor:default"><span class="t"><b class="ok">Ordinários nos 20%</b></span></div>`);
   const acabam = parcelasQueAcabam().slice(0, 3);
   const livres = acabam.length ? `<div style="margin-top:10px"><b style="font-size:12.5px">Parcelas que acabam e liberam dinheiro</b>
     ${acabam.map(a => `<div class="lin" style="cursor:default"><span class="d">${MESES[Number(a.mes.slice(5)) - 1].slice(0, 3)}</span>
       <span class="t">${a.itens.map(x => esc(x.nome)).join(", ")}<small>a partir da fatura de ${MESES[Number(a.mes.slice(5)) - 1]}</small></span><span class="val ok">+ ${brl(a.total)}</span></div>`).join("")}
-    <div class="faint" style="font-size:11.5px;margin-top:4px">Quando uma parcela acaba, mande esse valor para uma caixinha: assim o Futuro sobe sem apertar o mês.</div></div>` : "";
+    <div class="faint" style="font-size:11.5px;margin-top:4px">Quando uma parcela acaba, mande esse valor para uma caixinha: assim os Ordinários sobem sem apertar o mês.</div></div>` : "";
   return `<div class="box"><h3>Como chegar no ideal</h3>${linhas.join("")}${livres}</div>`;
 }
 
@@ -556,7 +621,7 @@ function paginaCaixinhas() {
       ${cx.length ? cx.map(c => {
         const pr = projecao(c), pct = c.meta ? Math.min(100, Math.round((c.saldo || 0) / c.meta * 100)) : 0;
         return `<div class="lin" data-cx="${c.id}" style="display:block">
-          <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "futuro" : c.grupo === 30 ? "repor" : "essencial"}</span></b>
+          <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "ordinários" : c.grupo === 30 ? "básicos" : "essencial"}</span></b>
             <span class="val">${brl(c.saldo || 0)}${c.meta ? ' <span class="faint">de ' + brl(c.meta) + "</span>" : ""}</span></div>
           ${c.meta ? `<div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin:6px 0 4px"><div style="height:100%;width:${pct}%;background:var(--g20)"></div></div>` : ""}
           <small class="faint">${esc(pr.texto)}</small></div>`;
@@ -574,9 +639,9 @@ function abrirCaixinha(c) {
     <div class="lado"><div class="campo"><label>Meta (opcional)</label><input id="cMeta" inputmode="decimal" value="${v(c.meta)}"></div>
       <div class="campo"><label>Até quando (opcional)</label><input id="cData" type="date" value="${esc(c.data || "")}"></div></div>
     <div class="campo"><label>Para que é</label><select id="cGrupo">
-      <option value="20" ${(c.grupo || 20) === 20 ? "selected" : ""}>Guardar para o futuro (20%)</option>
-      <option value="30" ${c.grupo === 30 ? "selected" : ""}>Repor ou comprar quando precisar: roupa, skincare (30%)</option>
-      <option value="50" ${c.grupo === 50 ? "selected" : ""}>Essencial (50%)</option></select></div>
+      <option value="20" ${(c.grupo || 20) === 20 ? "selected" : ""}>Guardar: Ordinários (20%)</option>
+      <option value="30" ${c.grupo === 30 ? "selected" : ""}>Repor ou comprar quando precisar: Básicos (30%)</option>
+      <option value="50" ${c.grupo === 50 ? "selected" : ""}>Essenciais (50%)</option></select></div>
     <label style="display:block;margin-bottom:10px"><input type="checkbox" id="cPausa" ${c.pausada ? "checked" : ""}> Pausar este mês (não conta no planejado)</label>
     ${(c.historico || []).length ? `<div class="box" style="margin:0 0 10px"><h3>Movimentos</h3>${c.historico.slice(-8).reverse().map(h => `<div class="lin" style="cursor:default"><span class="d">${ddmm(h.data)}</span><span class="t">${h.valor > 0 ? "guardou" : "usou"}${h.nota ? " · " + esc(h.nota) : ""}</span><span class="val ${h.valor > 0 ? "ok" : ""}">${brl(h.valor)}</span></div>`).join("")}</div>` : ""}
     <div class="acoes">${nova ? "" : '<button class="bt ghost" id="cApagar">Apagar</button>'}<button class="bt pri" id="cOk">Salvar</button></div>`,
@@ -657,6 +722,7 @@ function abrirLancar(base) {
   janela(base.id ? "Editar lançamento" : "Lançar", `
     <div class="chips"><span class="chip ${base.valor > 0 ? "" : "on"}" data-sinal="-1">Gasto</span><span class="chip ${base.valor > 0 ? "on" : ""}" data-sinal="1">Entrada</span></div>
     <div class="campo"><label>O que foi</label><input id="fNome" value="${esc(base.nome || "")}" placeholder="ex.: Uber, pé em gel"></div>
+    <div class="campo"><label>Detalhe (opcional)</label><input id="fDetalhe" value="${esc(base.detalhe || "")}" placeholder="ex.: remédio, presente"></div>
     <div class="lado"><div class="campo"><label>Valor</label><input id="fValor" inputmode="decimal" value="${base.valor ? Math.abs(base.valor).toFixed(2).replace(".", ",") : ""}"></div>
       <div class="campo"><label>Dia</label><input id="fData" type="date" value="${esc(base.data || ymd(new Date()))}"></div></div>
     <div class="campo"><label>Categoria</label><select id="fCat">${opcoesCategoria(base.categoria || "outros")}</select></div>
@@ -680,7 +746,7 @@ function abrirLancar(base) {
       const cartao = como.indexOf("cartao:") === 0 ? como.slice(7) : null;
       Object.assign(l, { nome: f.querySelector("#fNome").value.trim() || "Sem nome", valor: sinal * Math.abs(v), data: f.querySelector("#fData").value,
                          categoria: f.querySelector("#fCat").value, pagoFora: cartao ? null : (como || null), aClassificar: false,
-                         fixo: f.querySelector("#fFixo").value || null, cartaoAberto: cartao, fatura: cartao ? faturaAberta(cartao).id : null });
+                         fixo: f.querySelector("#fFixo").value || null, cartaoAberto: cartao, detalhe: f.querySelector("#fDetalhe").value.trim() || null, fatura: cartao ? faturaAberta(cartao).id : null });
       if (cartao) recalcularFaturaAberta(l.fatura);
       if (!base.id) S.lancamentos.push(l);
       salvar(); fechar(); render(); aviso("Salvo.");
@@ -720,12 +786,14 @@ function abrirLancamento(id) {
   janela("Lançamento", `
     <div class="dim" style="margin-bottom:10px">${esc(ddmm(l.data))} · ${brl(l.valor)} · no banco: <b>${esc(l.descBanco)}</b></div>
     <div class="campo"><label>Nome que você quer ver</label><input id="fNome" value="${esc(l.nome)}"></div>
+    <div class="campo"><label>O que foi (só este lançamento)</label><input id="fDetalhe" value="${esc(l.detalhe || "")}" placeholder="ex.: remédio, shampoo, mochila"></div>
     <div class="campo"><label>Categoria</label><select id="fCat">${opcoesCategoria(l.categoria)}</select></div>
     <div class="campo"><label><input type="checkbox" id="fMetade" ${l.dividido ? "checked" : ""}> Dividido meio a meio (conta só a metade)</label></div>
     <div class="campo"><label><input type="checkbox" id="fSempre" checked> Usar sempre que aparecer "${esc(chavePadrao(l.descBanco))}"</label></div>
     <div class="acoes"><button class="bt pri" id="fOk">Salvar</button></div>`,
   (f, fechar) => f.querySelector("#fOk").addEventListener("click", () => {
     const nome = f.querySelector("#fNome").value.trim(), categoria = f.querySelector("#fCat").value;
+    l.detalhe = f.querySelector("#fDetalhe").value.trim() || null;
     const dividido = f.querySelector("#fMetade").checked ? 0.5 : null;
     if (f.querySelector("#fSempre").checked) {
       const padrao = chavePadrao(l.descBanco);
@@ -943,6 +1011,7 @@ async function importar(arquivos) {
 $("#mesAnt").addEventListener("click", () => { MES = addMes(MES, -1); render(); });
 $("#mesProx").addEventListener("click", () => { MES = addMes(MES, 1); render(); });
 $("#btLancar").addEventListener("click", () => abrirLancar());
+$("#btBusca").addEventListener("click", () => { PAG = "busca"; render(); window.scrollTo(0, 0); });
 $("#btImportar").addEventListener("click", () => $("#arquivo").click());
 document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => { PAG = b.dataset.pag; render(); window.scrollTo(0, 0); }));
 usarTema(temaAtual());
