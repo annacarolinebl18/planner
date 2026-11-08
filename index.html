@@ -80,6 +80,9 @@ button,input,select{font:inherit;color:inherit}
 .lin .val{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
 /* botao "Pago" na propria linha do Mes (ela, 09/11: rapido, sem abrir janela) */
 .pago-bt{min-width:76px;flex:none;text-align:center;font-size:12.5px;padding:6px 8px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);cursor:pointer}
+.cx-bt{min-width:96px;max-width:96px;font-size:11.5px;line-height:1.2;white-space:normal}
+.lin.espera{opacity:.55}
+.lin .n{width:20px;height:20px;border-radius:50%;background:var(--surface-2);color:var(--dim);font-size:11px;display:flex;align-items:center;justify-content:center;flex:none}
 .pago-bt.apagar{color:var(--warn);border-color:var(--warn)}
 .pago-bt.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:600}
 .lin.fut{opacity:.8}
@@ -210,7 +213,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-09h";
+const VER = "2026-11-09i";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -516,6 +519,22 @@ function render() {
   else if (PAG === "busca") { $("#tela").innerHTML = paginaBusca(); ligarBusca(); }
   else $("#tela").innerHTML = paginaMais();
   document.querySelectorAll(".lin[data-id]").forEach(el => el.addEventListener("click", () => abrirLancamento(el.dataset.id)));
+  const cxMov = (c, v, nota) => { c.saldo = Math.round(((c.saldo || 0) + v) * 100) / 100; (c.historico = c.historico || []).push({ data: hojeS(), valor: v, nota }); c.em = new Date().toISOString(); };
+  document.querySelectorAll("[data-cxadd]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); const c = S.caixinhas.find(x => x.id === b.dataset.cxadd), v = Number(b.dataset.v);
+    c.feitos = Object.assign(c.feitos || {}, { [MES]: v }); cxMov(c, v, MESES[Number(MES.slice(5)) - 1]); salvar(); render(); aviso(brl(v) + " na caixinha " + c.nome + ".");
+  }));
+  document.querySelectorAll("[data-cxdes]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); const c = S.caixinhas.find(x => x.id === b.dataset.cxdes), v = (c.feitos || {})[MES] || 0;
+    delete c.feitos[MES]; cxMov(c, -v, "desfeito"); salvar(); render(); aviso(c.nome + ": voltou para o plano.");
+  }));
+  document.querySelectorAll("[data-cx13]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation(); const c = (S.caixinhas || []).find(x => /cabelo/i.test(x.nome)); if (!c) { aviso("Crie a caixinha do Cabelo."); return; }
+    const k = b.dataset.cx13, v = Number(b.dataset.v); c.feitos13 = c.feitos13 || {};
+    if (c.feitos13[k]) { delete c.feitos13[k]; cxMov(c, -v, "13º desfeito"); aviso("13º: voltou para o plano."); }
+    else { c.feitos13[k] = v; cxMov(c, v, "13º"); aviso(brl(v) + " do 13º na caixinha " + c.nome + "."); }
+    salvar(); render();
+  }));
   document.querySelectorAll("[data-pagar]").forEach(b => b.addEventListener("click", ev => {
     ev.stopPropagation(); pagarPrevisto(r.prev.find(x => x.id === b.dataset.pagar), MES);
   }));
@@ -559,6 +578,10 @@ function paginaMes(r) {
     .map(x => linhaLanc(x.l, x.fut));
   const nomeMes = MESES[Number(MES.slice(5)) - 1];
   const per = ddmm(r.ini) + " a " + ddmm(r.fim);
+  const pl = planoCaixinhas(MES, r);
+  const cardGuardar = pl ? `<div class="card" style="grid-column:span 2;border-color:var(--ok);background:var(--ok-soft)"><div class="r">Dá para guardar</div>
+      <div class="v ${pl.base > 0 ? "ok" : "bad"}">${brl(Math.max(0, pl.base))}</div>
+      <div class="faint" style="font-size:11.5px">já tirando o dia a dia (média ${brl(pl.dd)})${pl.cart ? " e os cartões (média " + brl(pl.cart) + ")" : ""}${pl.treze ? "; o 13º vai para o Cabelo" : ""}</div></div>` : "";
   const cor = v => v < 0 ? "bad" : "";
   let topo;
   if (r.fase === "passado") topo = `
@@ -570,12 +593,11 @@ function paginaMes(r) {
       <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
     </div>`;
   else if (r.fase === "futuro") topo = `
-    <div class="hero"><div class="r">Previsão de ${nomeMes}</div>
-      <div class="v ${cor(r.vaiEntrar - r.vaiSair)}">${brl(r.vaiEntrar - r.vaiSair)}</div>
-      <div class="n">o que entra menos as contas, sem o dia a dia · ${per}</div></div>
+    <div class="faint" style="font-size:12px;margin:-4px 0 8px">Previsão · ${per}</div>
     <div class="cards" style="grid-template-columns:1fr 1fr">
       <div class="card"><div class="r">Vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card"><div class="r">Vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
+      ${cardGuardar}
     </div>`;
   else topo = `
     <div class="hero"><div class="r">Na conta hoje</div>
@@ -586,10 +608,65 @@ function paginaMes(r) {
       <div class="card"><div class="r">Saiu</div><div class="v br">${brl(r.saiu)}</div></div>
       <div class="card"><div class="r">Ainda vai entrar</div><div class="v">${brl(r.vaiEntrar)}</div></div>
       <div class="card"><div class="r">Ainda vai sair</div><div class="v warn">${brl(r.vaiSair)}</div></div>
+      ${cardGuardar}
     </div>`;
-  return `${topo}
+  return `${topo}${htmlPlano(MES, r, pl)}
     ${(S.notasMes || {})[MES] ? `<div class="box" style="border-color:var(--warn)"><b class="warn">Mês incompleto</b><div class="dim" style="font-size:12.5px;margin-top:4px">${esc(S.notasMes[MES])}</div></div>` : ""}
     <div class="box"><h3>Gastos e entradas</h3>${tudo.length ? tudo.join("") : '<div class="vazio">Nada neste mês ainda.</div>'}</div>`;
+}
+/* Caixinhas no plano do mes: enche na ordem dela com o que sobra
+ * (entra - contas - cartoes - dia a dia). O 13o vai direto para o Cabelo. */
+const ordemCx = () => (S.caixinhas || []).slice().sort((a, b) => (a.ordem || 99) - (b.ordem || 99));
+const eh13 = p => /13º/.test(p.nome || "");
+function mediaDiaADia() {
+  // media dos 3 ultimos meses fechados: saidas da conta que nao sao contas fixas, cartao, investimento ou caixinha
+  const meses = [1, 2, 3].map(i => addMes(MES_ATUAL(), -i));
+  const tot = meses.map(m => lancamentosDoMes(m).filter(l => l.valor < 0 && ehMovimento(l) && !l.provisorio && l.categoria !== "cartao"
+    && !["investimento", "metas"].includes(l.categoria) && !S.fixos.some(f => casaFixo(f, l))).reduce((s, l) => s - l.valor * (l.dividido || 1), 0));
+  return Math.round(tot.reduce((a, b) => a + b, 0) / meses.length * 100) / 100;
+}
+const MES_ATUAL = () => periodoDe(hojeS());
+function cartoesEstimados(r) {
+  // cartao sem fatura conhecida no mes: media das ultimas 3 faturas dele
+  let tot = 0;
+  ["Mercado Pago", "Nubank"].forEach(c => {
+    if (r.prev.some(p => p.nome === "Cartão (" + c + ")") || r.lista.some(l => l.categoria === "cartao" && (l.nome || "").includes(c))) return;
+    const ult = S.faturas.filter(f => f.cartao === c && !f.emAberto).sort((a, b) => b.vence.localeCompare(a.vence)).slice(0, 3);
+    if (ult.length) tot += ult.reduce((s, f) => s + f.total, 0) / ult.length;
+  });
+  return Math.round(tot * 100) / 100;
+}
+function planoCaixinhas(m, r) {
+  if (r.fase === "passado") return null;
+  const dd = mediaDiaADia(), cart = r.fase === "futuro" ? cartoesEstimados(r) : 0;
+  const treze = r.prev.filter(eh13).reduce((s, p) => s + p.valor, 0);
+  let base = r.vaiEntrar - treze - r.vaiSair - cart;
+  if (r.fase === "atual") {
+    const tot = Math.max(1, difDias(r.ini, r.fim) + 1), resta = Math.max(0, difDias(hojeS(), r.fim) + 1);
+    base += (S.saldo ? S.saldo.valor : 0) - dd * resta / tot;
+  } else base -= dd;
+  let livre = Math.max(0, Math.round(base * 100) / 100);
+  const itens = ordemCx().filter(c => !c.pausada && !(c.desde && m < c.desde)).map(c => {
+    const feito = (c.feitos || {})[m];
+    const v = feito != null ? feito : Math.min(c.porMes || 0, livre);
+    if (feito == null) livre = Math.round((livre - v) * 100) / 100;
+    return { c, v, feito: feito != null };
+  });
+  return { base: Math.round(base * 100) / 100, dd, cart, treze, itens };
+}
+function htmlPlano(m, r, pl) {
+  if (!pl) return "";
+  const cab = (S.caixinhas || []).find(c => /cabelo/i.test(c.nome));
+  const lin13 = r.prev.filter(eh13).map(p => {
+    const k = "13|" + p.data, feito = cab && (cab.feitos13 || {})[k];
+    return `<div class="lin" style="cursor:default"><span class="t">${esc(cab ? cab.nome.replace(/\s*\(.*\)/, "") : "Cabelo")}<small>13º · ${ddmm(p.data)}</small></span><span class="val">${brl(p.valor)}</span>
+      <button class="pago-bt cx-bt ${feito ? "on" : ""}" data-cx13="${esc(k)}" data-v="${p.valor}">${feito ? "Adicionado" : "Adicionar à caixinha"}</button></div>`;
+  }).join("");
+  const lin = pl.itens.map(x => `<div class="lin ${x.v || x.feito ? "" : "espera"}" style="cursor:default"><span class="n">${x.c.ordem || "·"}</span>
+      <span class="t">${esc(x.c.nome)}<small>${x.feito ? "adicionado em " + MESES[Number(m.slice(5)) - 1] : x.v ? (x.v < (x.c.porMes || 0) ? "de " + brl(x.c.porMes) : "") : "espera sobrar"}${x.c.meta ? (x.v || x.feito ? " · " : " · ") + "meta " + brl(x.c.meta) : ""}</small></span>
+      <span class="val">${brl(x.v || x.c.porMes || 0)}</span>
+      ${x.feito ? `<button class="pago-bt cx-bt on" data-cxdes="${x.c.id}">Adicionado</button>` : x.v ? `<button class="pago-bt cx-bt" data-cxadd="${x.c.id}" data-v="${x.v}">Adicionar à caixinha</button>` : '<span class="cx-bt"></span>'}</div>`).join("");
+  return `<div class="box"><h3>Guardar este mês</h3>${lin13}${lin}</div>`;
 }
 function htmlMiniRegra() {
   const renda = rendaDoMes(MES).total;
@@ -820,7 +897,7 @@ function projecao(c) {
   return { falta, texto: `com ${brl(c.porMes)} por mês, chega em ${MESES[d.getMonth()]} de ${d.getFullYear()}` };
 }
 function paginaCaixinhas() {
-  const cx = S.caixinhas || [];
+  const cx = ordemCx();
   const total = cx.reduce((s, c) => s + (c.saldo || 0), 0), porMes = cx.filter(c => !c.pausada).reduce((s, c) => s + (c.porMes || 0), 0);
   const rd = rendaDoMes(MES), limite = rd.total * 0.2;
   return `<div class="cards" style="grid-template-columns:repeat(2,1fr)">
@@ -830,7 +907,7 @@ function paginaCaixinhas() {
       ${cx.length ? cx.map(c => {
         const pr = projecao(c), pct = c.meta ? Math.min(100, Math.round((c.saldo || 0) / c.meta * 100)) : 0;
         return `<div class="lin" data-cx="${c.id}" style="display:block">
-          <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "ordinários" : c.grupo === 30 ? "básicos" : "essencial"}</span></b>
+          <div style="display:flex;align-items:center;gap:8px"><span class="faint" style="width:16px">${c.ordem || ""}</span><b style="flex:1">${esc(c.nome)}${c.pausada ? '<span class="pil warn">pausada</span>' : ""}<span class="pil" style="background:color-mix(in srgb,var(--g${c.grupo || 20}) 22%,transparent)">${(c.grupo || 20) === 20 ? "ordinários" : c.grupo === 30 ? "básicos" : "essencial"}</span></b>
             <span class="val">${brl(c.saldo || 0)}${c.meta ? ' <span class="faint">de ' + brl(c.meta) + "</span>" : ""}</span></div>
           ${c.meta ? `<div style="height:7px;background:var(--trilho);border-radius:99px;overflow:hidden;margin:6px 0 4px"><div style="height:100%;width:${pct}%;background:var(--g20)"></div></div>` : ""}
           <small class="faint">${esc(pr.texto)}</small></div>`;
@@ -847,6 +924,8 @@ function abrirCaixinha(c) {
       <div class="campo"><label>Guardar por mês</label><input id="cMes" inputmode="decimal" value="${v(c.porMes)}"></div></div>
     <div class="lado"><div class="campo"><label>Meta (opcional)</label><input id="cMeta" inputmode="decimal" value="${v(c.meta)}"></div>
       <div class="campo"><label>Até quando (opcional)</label><input id="cData" type="date" value="${esc(c.data || "")}"></div></div>
+    <div class="lado"><div class="campo"><label>Ordem de importância</label><select id="cOrdem">${Array.from({ length: Math.max(8, (S.caixinhas || []).length + 1) }, (_, i) => `<option value="${i + 1}" ${(c.ordem || 0) === i + 1 ? "selected" : ""}>${i + 1}</option>`).join("")}</select></div>
+      <div class="campo"><label>Começa em</label><input id="cDesde" type="month" value="${esc(c.desde || "")}"></div></div>
     <div class="campo"><label>Para que é</label><select id="cGrupo">
       <option value="20" ${(c.grupo || 20) === 20 ? "selected" : ""}>Guardar: Ordinários (20%)</option>
       <option value="30" ${c.grupo === 30 ? "selected" : ""}>Repor ou comprar quando precisar: Básicos (30%)</option>
@@ -857,7 +936,8 @@ function abrirCaixinha(c) {
   (f, fechar) => {
     const ler = () => Object.assign(c, { nome: f.querySelector("#cNome").value.trim() || "Caixinha", saldo: num(f.querySelector("#cSaldo").value) || 0,
       porMes: num(f.querySelector("#cMes").value) || 0, meta: num(f.querySelector("#cMeta").value) || 0, data: f.querySelector("#cData").value || "",
-      pausada: f.querySelector("#cPausa").checked || undefined, grupo: Number(f.querySelector("#cGrupo").value) });
+      pausada: f.querySelector("#cPausa").checked || undefined, grupo: Number(f.querySelector("#cGrupo").value),
+      ordem: Number(f.querySelector("#cOrdem").value), desde: f.querySelector("#cDesde").value || "", em: new Date().toISOString() });
     f.querySelector("#cOk").addEventListener("click", () => { ler(); if (nova) S.caixinhas.push(c); salvar(); fechar(); render(); aviso("Salvo."); });
     const mov = sinal => {
       const t = prompt(sinal > 0 ? "Quanto você guardou?" : "Quanto você usou?", sinal > 0 && c.porMes ? v(c.porMes) : "");
