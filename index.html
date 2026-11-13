@@ -230,7 +230,7 @@ table.t th{color:var(--dim);font-weight:600;font-size:12px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 "use strict";
-const VER = "2026-11-10e";
+const VER = "2026-11-10g";
 const CHAVE = "planner-pessoal-dados";
 
 /* ================================================================
@@ -242,9 +242,9 @@ const CATEGORIAS_PADRAO = [
   { id: "casa", nome: "Casa", grupo: 50 }, { id: "impostos", nome: "Impostos", grupo: 50 },
   { id: "mercado", nome: "Mercado", grupo: 50 }, { id: "saude", nome: "Saúde", grupo: 50 },
   { id: "transporte", nome: "Transporte", grupo: 50 }, { id: "gatos", nome: "Gatos", grupo: 50 },
-  { id: "cabelo", nome: "Cabelo", grupo: 50 },   // ela: "cabelo e essencial pra mim" (mega hair, alisamento, coloracao, tratamento)
+  { id: "beleza", nome: "Beleza", grupo: 50 },   // ela: cabelo, produtos, unha e sobrancelha numa categoria so, em Essenciais
   // 30: Basicos (o que e escolha dela)
-  { id: "beleza", nome: "Beleza", grupo: 30 }, { id: "alimentacao", nome: "Alimentação/bebidas", grupo: 30 },
+  { id: "alimentacao", nome: "Alimentação/bebidas", grupo: 30 },
   { id: "lazer", nome: "Lazer e saídas", grupo: 30 }, { id: "compras", nome: "Compras", grupo: 30 },
   { id: "assinaturas", nome: "Assinaturas", grupo: 30 }, { id: "academia", nome: "Academia", grupo: 30 },
   { id: "estudo", nome: "Estudo", grupo: 30 }, { id: "outros", nome: "Outros", grupo: 30 },
@@ -252,7 +252,7 @@ const CATEGORIAS_PADRAO = [
   { id: "investimento", nome: "Investimento", grupo: 20 }, { id: "metas", nome: "Caixinhas e metas", grupo: 20 },
   { id: "dividas", nome: "Dívidas e juros", grupo: 20 },
   // fora da regra
-  { id: "renda", nome: "Renda", grupo: 0 }, { id: "casa_igor", nome: "Contas da casa (Igor)", grupo: 0 },
+  { id: "renda", nome: "Renda", grupo: 0 },
   { id: "cartao", nome: "Cartão", grupo: 0 }, { id: "transferencia", nome: "Entre contas suas", grupo: 0 }
 ];
 function vazio() {
@@ -527,7 +527,12 @@ function resumo(m) {
  * TELA
  * ================================================================ */
 let PAG = "mes";
+function normalizarCategorias() {
+  const tr = x => { if (x.categoria === "casa_igor") x.categoria = "casa"; if (x.categoria === "cabelo") x.categoria = "beleza"; };
+  (S.lancamentos || []).forEach(tr); (S.apelidos || []).forEach(tr); (S.fixos || []).forEach(tr);
+}
 function render() {
+  normalizarCategorias();
   const fin = AREA === "fin";
   $("#mesNav").hidden = !fin; $("#acoesFin").hidden = !fin; $("#acoesFin").style.display = fin ? "contents" : "none";
   $("#btInicio").hidden = fin || AREA === "inicio";
@@ -795,7 +800,7 @@ function resultadoBusca() {
   const q = norm(BUSCA.texto).trim();
   const desde = BUSCA.periodo ? addMes(ym(new Date()), -(BUSCA.periodo - 1)) : "0000-00";
   return S.lancamentos.filter(l => {
-    if (["transferencia", "cartao", "casa_igor"].includes(l.categoria)) return false;
+    if (["transferencia", "cartao"].includes(l.categoria) || (l.categoria === "casa" && l.valor > 0)) return false;
     if (BUSCA.entradas ? l.valor <= 0 : l.valor >= 0) return false;
     if (mesDoGasto(l) < desde) return false;
     if (BUSCA.cats.length && !BUSCA.cats.includes(l.categoria)) return false;
@@ -811,7 +816,7 @@ function paginaBusca() {
   const abertas = new Set(res.filter(l => l.parcela && Number(l.parcela.split("/")[0]) < Number(l.parcela.split("/")[1]))
     .map(l => [l.nome, l.parcela.split("/")[1], ondeDe(l), Math.abs(l.valor).toFixed(2)].join("|"))).size;
   const meses = [...new Set(res.map(mesDoGasto))].length;
-  const usadas = [...new Set(S.lancamentos.map(l => l.categoria))].filter(c => !["transferencia", "cartao", "casa_igor"].includes(c));
+  const usadas = [...new Set(S.lancamentos.map(l => l.categoria))].filter(c => !["transferencia", "cartao"].includes(c));
   const chip = (attr, val, on, txt) => `<span class="chip ${on ? "on" : ""}" ${attr}="${esc(val)}">${esc(txt)}</span>`;
   return `<div class="box">
     <div class="campo" style="margin-bottom:8px"><input id="bTexto" placeholder="Buscar: mounjaro, shein, farmácia, remédio..." value="${esc(BUSCA.texto)}" autocomplete="off"></div>
@@ -960,7 +965,7 @@ function rendaDoMes(m) {
 /* Quanto cada parte gastou no mes (o mesmo calculo do grafico "Real"). */
 function realPorGrupo(m) {
   const gastos = gastosDoMesPorDestino(m);
-  const igorCasa = S.lancamentos.filter(l => l.categoria === "casa_igor" && l.valor > 0 && (l.data || "").slice(0, 7) === m).reduce((s, l) => s + l.valor, 0);
+  const igorCasa = S.lancamentos.filter(l => l.categoria === "casa" && l.valor > 0 && (l.data || "").slice(0, 7) === m).reduce((s, l) => s + l.valor, 0);
   const real = GRUPOS.map(x => gastos.filter(l => cat(l.categoria).grupo === x.g).reduce((s, l) => s + Math.abs(l.valor * (l.dividido || 1)), 0));
   real[0] = Math.max(0, real[0] - igorCasa);
   return real;
@@ -1001,8 +1006,8 @@ function paginaRegra(r) {
   const ideal = GRUPOS.map(x => renda * x.g / 100);
   const planejado = GRUPOS.map(x => S.fixos.filter(f => f.valor < 0 && cat(f.categoria).grupo === x.g && !(f.desde && MES < f.desde) && !(f.ate && MES > f.ate))
     .reduce((s, f) => { const ex = (f.excecoes || {})[MES] || {}; return ex.pular ? s : s + Math.abs(ex.valor != null ? ex.valor : f.valor) * (ex.vezes || 1) * (f.dividido || 1); }, 0));
-  const igorCasa = S.lancamentos.filter(l => l.categoria === "casa_igor" && l.valor > 0 && (l.data || "").slice(0, 7) === MES).reduce((s, l) => s + l.valor, 0);
-  planejado[0] = Math.max(0, planejado[0] - S.fixos.filter(f => f.categoria === "casa_igor").reduce((s, f) => s + f.valor, 0));
+  const igorCasa = S.lancamentos.filter(l => l.categoria === "casa" && l.valor > 0 && (l.data || "").slice(0, 7) === MES).reduce((s, l) => s + l.valor, 0);
+  planejado[0] = Math.max(0, planejado[0] - S.fixos.filter(f => f.categoria === "casa" && f.valor > 0).reduce((s, f) => s + f.valor, 0));
   (S.caixinhas || []).filter(c => !c.pausada).forEach(c => { const i = GRUPOS.findIndex(x => x.g === (c.grupo || 20)); planejado[i] += c.porMes || 0; });
   const gastos = gastosDoMesPorDestino(MES);
   const real = realPorGrupo(MES);
